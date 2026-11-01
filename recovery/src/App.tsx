@@ -70,13 +70,24 @@ export default function App() {
   const wrongNet = Boolean(session && session.chainId !== c.dep.chainId);
   const demo = new URLSearchParams(location.search).get("demo") === "simulated-outage";
 
+  // Everything shown is scoped to this key. A load that finishes after the selection changed is discarded, so figures for an
+  // earlier address or network can never be drawn beside the current one.
+  const viewKey = `${net}:${c.vault ?? ""}:${customer ?? ""}:${providerId ?? ""}`;
+  const viewKeyRef = useRef(viewKey);
+  viewKeyRef.current = viewKey;
+  useEffect(() => { setAcct(null); setResv(null); setReadErr(null); }, [viewKey]);
+
   const scan = useRef<{ key: string; next: bigint; reserved: Set<string>; closed: Set<string> }>({ key: "", next: 0n, reserved: new Set(), closed: new Set() });
   const load = useCallback(async () => {
     if (!c.vault || !customer || providerId === null) return;
+    const loadKey = viewKey;
+    const stale = () => viewKeyRef.current !== loadKey;
     setLoading(true);
     try {
       const block = await c.publicClient.getBlockNumber();
+      if (stale()) return;
       const [a, r, d, s, rf] = await c.publicClient.readContract({ address: c.vault, abi: unspentVaultAbi, functionName: "getAccount", args: [providerId, customer], blockNumber: block });
+      if (stale()) return;
       setAcct({ available: a, reserved: r, deposited: d, settled: s, refunded: rf, block, at: Date.now() });
       // One filtered eth_getLogs per block range (customer and provider are indexed topics), scanned
       // incrementally: the first load walks from the deployment block, later polls read only new blocks.
@@ -89,6 +100,7 @@ export default function App() {
         const end = start + step - 1n > block ? block : start + step - 1n;
         try {
           const logs = (await c.publicClient.request({ method: "eth_getLogs", params: [{ address: c.vault, fromBlock: toHex(start), toBlock: toHex(end), topics }] as never })) as { topics: Hex[] }[];
+          if (stale()) return;
           for (const l of logs) {
             const id = BigInt(l.topics[1]!).toString();
             if (l.topics[0] === toEventSelector(EV_RESERVED)) sc.reserved.add(id);
@@ -106,16 +118,17 @@ export default function App() {
       const open: OpenRes[] = [];
       for (const x of reserved.filter((x) => !closed.has(x.id.toString()))) {
         const rr = await c.publicClient.readContract({ address: c.vault, abi: unspentVaultAbi, functionName: "getReservation", args: [x.id], blockNumber: block });
+        if (stale()) return;
         if (rr.status === 1) open.push({ id: x.id, amount: rr.maxAmount, expiry: rr.expiry });
       }
       setResv(open);
       setReadErr(null);
     } catch {
-      setReadErr("Onchain data temporarily unavailable. No funds have moved.");
+      if (!stale()) setReadErr("Onchain data temporarily unavailable. No funds have moved.");
     } finally {
-      setLoading(false);
+      if (!stale()) setLoading(false);
     }
-  }, [c, customer, providerId]);
+  }, [c, customer, providerId, viewKey]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
