@@ -1,14 +1,14 @@
 // Browser journey: connect wallet -> approve -> deposit -> read balance -> simulated outage -> independent recovery -> refund.
 import { chromium } from "playwright-core";
 import { installTestWallet } from "./e2e-wallet";
-import { acct, wallet } from "./lib";
+import { acct, env, wallet } from "./lib";
 import { deployments } from "../src/contracts/deployments";
 
 const APP = "http://localhost:5173";
 const RECOVERY = "http://localhost:5174/recovery-client/";
 const providerId = BigInt(deployments.testnet.providerId!);
 const customer = wallet("TESTNET_CUSTOMER_KEY").account.address;
-const token = process.env.DEMO_OPERATOR_TOKEN!;
+const token = env.DEMO_OPERATOR_TOKEN;
 const shots = "/tmp/shots/e2e";
 const step = (s: string) => console.log(`\n== ${s}`);
 
