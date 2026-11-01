@@ -26,6 +26,11 @@ console.log("BEFORE", JSON.stringify(before, (_, v) => (typeof v === "bigint" ? 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--no-sandbox"] });
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 1100 }, colorScheme: "dark" })).newPage();
 const pageErrors: string[] = [];
+// diagnostics: log every API call the page makes (status + code only, never bodies) and screenshot on a stuck step
+page.on("response", async (r) => { if (r.url().includes("/api/v1/")) console.log("  api", r.request().method(), new URL(r.url()).pathname, r.status()); if (r.url().includes("/api/v1/") && r.status() >= 400) { const j = (await r.json().catch(() => ({}))) as { code?: string; message?: string }; console.log("    ->", j.code, (j.message ?? "").slice(0, 260)); } });
+page.on("requestfailed", (r) => console.log("  request failed:", r.url().slice(0, 90), r.failure()?.errorText));
+page.on("console", (m) => { if (m.type() === "error") console.log("  console.error:", m.text().slice(0, 160)); });
+process.on("unhandledRejection", async () => { await page.screenshot({ path: "/tmp/shots/real-stuck.png", fullPage: true }).catch(() => {}); });
 page.on("pageerror", (e) => pageErrors.push(e.message));
 let acceptBody: Record<string, string> | undefined;
 let acceptUrl = "";
