@@ -15,7 +15,7 @@ export default function Recover() {
       <header className="max-w-2xl">
         <p className="label">Independent recovery</p>
         <h1 className="mt-2 text-3xl font-semibold sm:text-4xl">Your funds, even if an app goes offline.</h1>
-        <p className="mt-3 leading-relaxed text-muted">The recovery client is a separate static page. It reads the contract straight from an Arc RPC and sends refund and release transactions from your own wallet. It has no login, no database, no indexer and no relayer, and it never calls the UNSPENT API.</p>
+        <p className="mt-3 leading-relaxed text-muted">The recovery client is a separate static site. It reads the contract from an Arc RPC (directly, or through a read-only pass-through on its own host, which is not the UNSPENT API) and sends refund and release transactions from your own wallet. It has no login, no database, no indexer and no relayer, and it never calls the UNSPENT API.</p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer">Open the recovery client <ExternalLink size={15} aria-hidden /></a>
           <span className="text-sm text-muted">Billing backend now: {s.kind === "online" ? <Pill tone="ok">online</Pill> : s.kind === "simulated-outage" ? <Pill tone="warn">SIMULATED OUTAGE (demo)</Pill> : s.kind === "unreachable" ? <Pill tone="warn">unreachable</Pill> : <Pill>checking</Pill>}</span>
