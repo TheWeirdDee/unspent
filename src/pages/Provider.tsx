@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { apiUrl } from "@/lib/api";
 import { isAddress, keccak256, stringToHex, type Address } from "viem";
 import { useActivity } from "@/hooks/useActivity";
 import { useProviderOnchain, useWalletReady, PROVIDER_ID } from "@/hooks/useVault";
@@ -119,7 +120,7 @@ function DemoControls({ status }: { status: string }) {
   async function toggle(active: boolean) {
     setBusy(true); setMsg(null);
     try {
-      const res = await fetch("/api/v1/demo/outage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active, minutes: 10 }) });
+      const res = await fetch(apiUrl("/api/v1/demo/outage"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active, minutes: 10 }) });
       const j = await res.json();
       setMsg(res.ok ? (active ? "Simulated outage is ON for up to 10 minutes. It only affects this sample service." : "Simulated outage is OFF.") : `Rejected: ${j.message ?? j.code}`);
     } catch { setMsg("The sample backend is unreachable, so the toggle could not be sent. If you started an outage, it ends automatically after 10 minutes."); }
