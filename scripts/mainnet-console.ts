@@ -6,7 +6,9 @@ import { keccak256, stringToHex, toFunctionSelector, sha256 } from "viem";
 import { deployments } from "../src/contracts/deployments";
 
 const out = process.argv[2];
-if (!out) throw new Error("usage: mainnet-console.ts <out.html>");
+if (!out) throw new Error("usage: mainnet-console.ts <out.html> [expectedOwner]");
+const expectedOwner = (process.argv[3] ?? "").toLowerCase();
+if (expectedOwner && !/^0x[0-9a-f]{40}$/.test(expectedOwner)) throw new Error("expectedOwner must be a 0x address");
 const art = JSON.parse(readFileSync(new URL("../contracts/out/UnspentVault.sol/UnspentVault.json", import.meta.url), "utf8"));
 const m = deployments.mainnet;
 const testnet = deployments.testnet;
@@ -29,6 +31,12 @@ const cfg = {
   registerSelector: toFunctionSelector("registerProvider(address,bytes32)"),
   metadata,
   metadataHash: keccak256(stringToHex(metadata)),
+  expectedOwner,
+  // Explicit limits so the wallet's up-front balance check is not inflated by its own default max fee. Arc base fee floor is 20 gwei.
+  deployGas: 2_430_000,
+  registerGas: 120_000,
+  maxFeePerGas: 30_000_000_000,
+  maxPriorityFeePerGas: 3_000_000_000,
 };
 
 const html = `<!doctype html>
@@ -62,6 +70,8 @@ const html = `<!doctype html>
  <tr><td>Transaction data</td><td class="mono"><span id="d-len"></span> bytes; SHA-256 <span id="d-sha"></span> <span id="d-sha-ok"></span></td></tr>
  <tr><td>Gas estimate (live)</td><td class="mono" id="d-gas">-</td></tr>
  <tr><td>Fee estimate</td><td class="mono" id="d-fee">-</td></tr>
+ <tr><td>Limits this page sets</td><td class="mono">gas limit ${cfg.deployGas.toLocaleString("en-US")}; max fee ${cfg.maxFeePerGas / 1e9} gwei; priority tip ${cfg.maxPriorityFeePerGas / 1e9} gwei. The most the transaction can ever cost is ${(cfg.deployGas * cfg.maxFeePerGas / 1e18).toFixed(4)} USDC; the expected cost is the fee estimate above.</td></tr>
+ <tr><td>Required signer</td><td class="mono">${expectedOwner || "(any)"} <span id="d-who"></span></td></tr>
 </table>
 <button id="deploy" disabled>Send deployment transaction (MetaMask will ask you to confirm)</button>
 <div id="d-out" class="mono"></div>
@@ -73,7 +83,7 @@ const html = `<!doctype html>
  <tr><td>Method</td><td class="mono">registerProvider(address payoutWallet, bytes32 metadataHash) selector ${cfg.registerSelector}</td></tr>
  <tr><td>metadataHash</td><td class="mono">${cfg.metadataHash}<br>= keccak256 of ${JSON.stringify(cfg.metadata).replace(/</g, "&lt;")}</td></tr>
  <tr><td>Signer = provider owner</td><td class="mono" id="r-from">-</td></tr>
- <tr><td>Value / gas</td><td>0 / about 96,547 gas</td></tr>
+ <tr><td>Value / gas</td><td>0 / about 96,547 gas used (limit ${cfg.registerGas.toLocaleString("en-US")}, max fee ${cfg.maxFeePerGas / 1e9} gwei, tip ${cfg.maxPriorityFeePerGas / 1e9} gwei)</td></tr>
 </table>
 <button id="register" disabled>Send registerProvider transaction</button>
 <div id="r-out" class="mono"></div>
@@ -84,6 +94,7 @@ let eth = null, account = null;
 const $ = (id) => document.getElementById(id);
 const fmt = (wei) => (Number(wei) / 1e18).toFixed(6) + " USDC";
 const pad = (h) => h.replace(/^0x/, "").toLowerCase().padStart(64, "0");
+const hex = (n) => "0x" + BigInt(n).toString(16);
 const isAddr = (a) => /^0x[0-9a-fA-F]{40}$/.test(a);
 async function pickProvider() {
   const found = [];
@@ -103,8 +114,10 @@ async function refresh() {
   $("switch").disabled = ok || !account;
   $("d-from").textContent = $("r-from").textContent = account || "-";
   try { const gp = BigInt(await eth.request({ method: "eth_gasPrice" })); $("gp").textContent = Number(gp) / 1e9 + " gwei"; window.__gp = gp; } catch {}
-  $("deploy").disabled = !(ok && account && !window.__deploying);
-  $("register").disabled = !(ok && account && isAddr($("r-vault").value) && isAddr($("r-payout").value));
+  const rightWho = !CFG.expectedOwner || (account && account.toLowerCase() === CFG.expectedOwner);
+  $("d-who").innerHTML = account ? (rightWho ? '<span class="ok">(connected account matches)</span>' : '<span class="bad">(connected account is DIFFERENT: switch account in MetaMask)</span>') : "";
+  $("deploy").disabled = !(ok && account && rightWho && !window.__deploying);
+  $("register").disabled = !(ok && account && rightWho && isAddr($("r-vault").value) && isAddr($("r-payout").value));
   if (ok && account) {
     try {
       const g = BigInt(await eth.request({ method: "eth_estimateGas", params: [{ from: account, data: CFG.deployData }] }));
@@ -139,7 +152,7 @@ $("switch").onclick = async () => {
 $("deploy").onclick = async () => {
   window.__deploying = true; $("deploy").disabled = true;
   try {
-    const hash = await eth.request({ method: "eth_sendTransaction", params: [{ from: account, data: CFG.deployData }] });
+    const hash = await eth.request({ method: "eth_sendTransaction", params: [{ from: account, data: CFG.deployData, gas: hex(CFG.deployGas), maxFeePerGas: hex(CFG.maxFeePerGas), maxPriorityFeePerGas: hex(CFG.maxPriorityFeePerGas) }] });
     const r = await waitReceipt(hash, $("d-out"));
     $("d-out").innerHTML = "Tx <b>" + hash + "</b><br>status " + (r.status === "0x1" ? '<span class="ok">success</span>' : '<span class="bad">FAILED</span>') + ", block " + parseInt(r.blockNumber, 16) + "<br>contract address: <b>" + r.contractAddress + '</b><br><a style="color:#33c9b0" target="_blank" rel="noopener" href="' + CFG.explorer + "/tx/" + hash + '">view on explorer</a>. Send me this hash; I will verify the code on the chain before you register.';
     if (r.contractAddress) $("r-vault").value = r.contractAddress;
@@ -150,7 +163,7 @@ $("register").onclick = async () => {
   $("register").disabled = true;
   const data = CFG.registerSelector + pad($("r-payout").value) + pad(CFG.metadataHash);
   try {
-    const hash = await eth.request({ method: "eth_sendTransaction", params: [{ from: account, to: $("r-vault").value, data }] });
+    const hash = await eth.request({ method: "eth_sendTransaction", params: [{ from: account, to: $("r-vault").value, data, gas: hex(CFG.registerGas), maxFeePerGas: hex(CFG.maxFeePerGas), maxPriorityFeePerGas: hex(CFG.maxPriorityFeePerGas) }] });
     const r = await waitReceipt(hash, $("r-out"));
     $("r-out").innerHTML = "Tx <b>" + hash + "</b><br>status " + (r.status === "0x1" ? '<span class="ok">success</span>' : '<span class="bad">FAILED</span>') + ", block " + parseInt(r.blockNumber, 16) + ". Send me this hash.";
   } catch (e) { $("r-out").innerHTML = '<span class="bad">' + (e.code === 4001 ? "Rejected in MetaMask. Nothing was sent." : (e.message || e)) + "</span>"; }
