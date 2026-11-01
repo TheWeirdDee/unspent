@@ -1,6 +1,6 @@
-# Mainnet readiness (updated 2026-11-01; NOTHING submitted)
+# Mainnet readiness and plan (executed once on 1 Nov 2026: see docs/mainnet-journey.md)
 
-Status: **prepared, not deployed**. No mainnet transaction has been signed or sent by anyone. Every transaction below needs the owner's explicit approval in their own wallet. Re-read gas and addresses immediately before signing.
+Status: **deployed on Arc mainnet and exercised once** (vault `0xa73723023a25fB400A153AE82F7A87B93d305f49`; one small deposit, real Gemini request, settlement and refund, all signed by the owner in their own wallet). The full record with every hash, decoded event and balance is `docs/mainnet-journey.md`. This is **not** a claim that the app or contract is mainnet-ready or audited: the contract is unaudited and the MetaMask classification is unresolved. The sections below are the plan as prepared before the run, kept for the record; the journey document supersedes them.
 
 ## Blockers and open items
 
@@ -8,10 +8,10 @@ Status: **prepared, not deployed**. No mainnet transaction has been signed or se
 |---|---|---|
 | 1 | **MetaMask flags both UNSPENT domains as malicious at wallet connection** ("Continue at your own risk… signs of phishing or wallet-draining activity"; badge "Malicious — flagged as unsafe"), on `unspent-xi.vercel.app` and on the static `unspent-recovery.pages.dev`. Cause unknown. | **Unresolved.** Review requested: https://github.com/MetaMask/eth-phishing-detect/issues/308206. The warning will appear on mainnet too; the owner decides each time whether to proceed. Domains are not being changed to avoid it, and nothing bypasses it programmatically. |
 | 2 | `UnspentVault.sol` has **no independent audit** and the app says so. Mainnet use is at the owner's own risk. | Open |
-| 3 | Real mainnet USDC for the three funded addresses (about 1.25 USDC in total; see "Funding"). | Owner action |
-| 4 | Owner's MetaMask public addresses (owner and customer; payout may equal owner). | Owner action |
+| 3 | Real mainnet USDC for the three funded addresses (about 1.25 USDC in total; see "Funding"). | Done: funded from the owner's own USDC (see journey) |
+| 4 | Owner's MetaMask public addresses (owner and customer; payout may equal owner). | Done: addresses supplied and used (see journey) |
 | 5 | Residual npm advisory: `zod@3.22.4` and `zod@3.25.76` (GHSA-mrhx-c7xc-m3w5, memory exhaustion on oversized constrained collections), pulled in by `abitype`, `@reown/appkit-wallet` and `@coinbase/cdp-sdk`. No patched 3.x release exists (fixed only in 4.6.6) and forcing zod 4 into those packages could break them. The built app bundle contains no zod 3 code. | Accepted, documented |
-| 6 | Render API for mainnet and a separate database (see "Hosting"). | Owner action |
+| 6 | Render API for mainnet and a separate database (see "Hosting"). | Done: `unspent-api-mainnet` on Render's free plan with its own Neon database. Suspending the testnet API service to stay within free-plan hours is an owner action. |
 
 ## Completed in this pass (each verified)
 
