@@ -1,6 +1,7 @@
 // Non-authoritative metadata store. Financial truth is always the contract. Raw inputs/outputs are never persisted.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import type { Address, Hex } from "viem";
 
 export type RequestState =
@@ -29,6 +30,8 @@ export interface RequestRecord {
   reservationId?: string;
   reserveTx?: Hex;
   settleTx?: Hex;
+  /** Hash of a relayer transaction that was broadcast and whose receipt has not been reconciled yet. */
+  pendingTx?: Hex;
   responseHash?: Hex;
   serviceModel?: string;
   latencyMs?: number;
@@ -42,7 +45,7 @@ interface Data {
   usage: Record<string, number>; // "YYYY-MM-DD:global" and "YYYY-MM-DD:<customer>" -> model calls started
 }
 
-const dir = new URL("../data/", import.meta.url).pathname;
+const dir = fileURLToPath(new URL("../data/", import.meta.url)); // not .pathname: that yields /C:/... on Windows
 const file = `${dir}state.json`;
 let data: Data = { requests: {}, usage: {} };
 
@@ -76,19 +79,29 @@ if (!sql && existsSync(file)) {
     writeFileSync(file, JSON.stringify(data));
   }
 }
+// Writes are serialised in call order and each call returns a promise that settles when THAT write is acknowledged.
+// `put` does not wait (cosmetic updates); `putDurable` does, and rejects if the write failed, so irreversible steps
+// (the paid model call, a relayer broadcast) are only taken after their intent is recorded.
 let pending: Promise<unknown> = Promise.resolve();
-function persist() {
+function persist(): Promise<void> {
   if (sql) {
     const snapshot = JSON.stringify(data);
-    pending = pending
-      .then(() => sql`INSERT INTO unspent_state (id, data) VALUES (1, ${snapshot}::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`)
-      .catch((e) => console.error("state persist failed (chain remains authoritative):", (e as Error).message));
-    return;
+    const write = pending.then(() => sql`INSERT INTO unspent_state (id, data) VALUES (1, ${snapshot}::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`);
+    pending = write.catch(() => undefined); // a failed write must not block later ones
+    return write.then(() => undefined);
   }
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(`${file}.tmp`, JSON.stringify(data));
-  renameSync(`${file}.tmp`, file);
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${file}.tmp`, JSON.stringify(data));
+    renameSync(`${file}.tmp`, file);
+    return Promise.resolve();
+  } catch (e) {
+    return Promise.reject(e);
+  }
 }
+const persistQuiet = () => {
+  persist().catch((e) => console.error("state persist failed (chain remains authoritative):", (e as Error).message));
+};
 
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 export function tokenMatches(rec: { accessTokenHash: string }, token: unknown): boolean {
@@ -107,7 +120,7 @@ function revokeAll(): { revoked: number; total: number } {
   for (const r of all) {
     if (r.accessTokenHash !== REVOKED) { r.accessTokenHash = REVOKED; revoked++; }
   }
-  persist();
+  persistQuiet();
   return { revoked, total: all.length };
 }
 const REVOKED = "revoked";
@@ -121,20 +134,26 @@ export const store = {
     const now = Date.now();
     let n = 0;
     for (const [id, r] of Object.entries(data.requests)) if ((r.state === "quoted" || r.state === "failed_before_service") && now - r.createdAt > QUOTE_TTL_MS) { delete data.requests[id]; n++; }
-    if (n) persist();
+    if (n) persistQuiet();
   },
   put(r: RequestRecord) {
     r.updatedAt = Date.now();
     data.requests[r.requestId] = r;
-    persist();
+    persistQuiet();
+  },
+  /** Like `put`, but resolves only once the write is acknowledged and rejects if it failed. */
+  putDurable(r: RequestRecord): Promise<void> {
+    r.updatedAt = Date.now();
+    data.requests[r.requestId] = r;
+    return persist();
   },
   usageToday(customer: string) {
     const d = new Date().toISOString().slice(0, 10);
     return { global: data.usage[`${d}:global`] ?? 0, customer: data.usage[`${d}:${customer.toLowerCase()}`] ?? 0 };
   },
-  bumpUsage(customer: string) {
+  bumpUsage(customer: string): Promise<void> {
     const d = new Date().toISOString().slice(0, 10);
     for (const k of [`${d}:global`, `${d}:${customer.toLowerCase()}`]) data.usage[k] = (data.usage[k] ?? 0) + 1;
-    persist();
+    return persist();
   },
 };
