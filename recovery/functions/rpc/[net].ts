@@ -5,6 +5,8 @@
 // affected. This is NOT the UNSPENT API: it forwards JSON-RPC reads to Arc's public RPC and nothing else, holds no state,
 // no keys and no secrets, and the client falls back to the direct RPC hosts (and any RPC the user adds) without it.
 // Transactions are never sent through here: the user's wallet sends them.
+// Limits in this file: read-only methods, at most 20 calls and 100 KB per request, a 10 s timeout per upstream. There is no
+// per-client rate limit here; set one at the host (Cloudflare rate-limiting rules) if this deployment sees abuse.
 
 // Arc's public endpoints (https://docs.arc.io/arc/references/rpc-endpoints.md), tried in order on a 429, a 5xx or a network
 // error. All visitors share this host's address, so the primary endpoint's rate limit is hit sooner than from a browser.
@@ -32,6 +34,33 @@ const READ_ONLY = new Set([
   "eth_maxPriorityFeePerGas",
 ]);
 
+const MAX_BODY_BYTES = 100_000;
+
+/** Reads the request body but stops (and refuses) as soon as it exceeds the limit, instead of buffering an arbitrary upload first. */
+async function readLimited(request: Request, max: number): Promise<string | null> {
+  const reader = request.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 const reply = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
@@ -40,8 +69,9 @@ export const onRequestPost = async (context: { request: Request; params: { net?:
   const upstreams = net && Object.hasOwn(UPSTREAM, net) ? UPSTREAM[net] : undefined;
   if (!upstreams) return reply(404, { error: "unknown network" });
 
-  const text = await context.request.text();
-  if (text.length > 100_000) return reply(413, { error: "request too large" });
+  if (Number(context.request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return reply(413, { error: "request too large" });
+  const text = await readLimited(context.request, MAX_BODY_BYTES);
+  if (text === null) return reply(413, { error: "request too large" });
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
