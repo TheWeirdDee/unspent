@@ -4,7 +4,7 @@ All results below were produced in the Arc Studio sandbox on 1 Nov 2026. Re-run 
 
 ## Contract (Foundry)
 
-`forge test`: 200 passed, 0 failed (13 suites). Includes fuzz (512 runs) and invariant suites (256 runs, depth 150).
+`forge test` (Foundry 1.8.7, clean clone of `main` at `2376af9`, 2026-11-01): 193 passed, 0 failed, 12 suites. Forge counts the invariant campaign as one test; it checks 8 invariant properties (256 runs, depth 150, 38,400 calls, 0 reverts), so the earlier "200" is 192 tests plus 8 invariants. Includes fuzz (512 runs).
 Covered: atomic deposit and failed transfers; fee-on-transfer rejection; signature, domain, chain, contract, provider, payout-version, nonce and replay failures; deadline boundaries at deadline-1, deadline, deadline+1 (reserve), expiry-1, expiry, expiry+1 (settle and release); duplicate settle or release; provider and relayer cannot settle alone; partial settlement; bound payout after a payout update; refund of available only; refund and reservation races; token transfer failures leave state unchanged; reentrancy via token hooks and payout contracts; forced surplus creates no credit; per-account and global conservation under random sequences.
 Static analysis (Slither): only intentional block.timestamp comparisons and one false positive on a handled recover result.
 Review: one High finding (a provider payout set to the vault itself would burn credit without paying anyone). Fixed (payout may not be the vault or the token); covered by `UnspentVault.Payout.t.sol`. One Low finding (error context parameters) was not applied.
