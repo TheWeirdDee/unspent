@@ -344,7 +344,7 @@ export default function App() {
           </div>
         </div>
       ) : null}
-      <p className="mx-auto max-w-3xl px-4 pb-8 text-xs text-faint sm:px-6">Recovery client build <span className="mono">{BUILD_COMMIT === "dev" ? "local development build" : BUILD_COMMIT.slice(0, 7)}</span>. No analytics, no backend calls.</p>
+      <p className="mx-auto max-w-3xl px-4 pb-8 text-xs text-faint sm:px-6">Recovery client build <span className="mono">{BUILD_COMMIT === "dev" ? "local development build" : BUILD_COMMIT.slice(0, 7)}</span>. No analytics and no calls to the UNSPENT API. Chain reads may pass through a read-only RPC relay on this host.</p>
     </div>
   );
 }
