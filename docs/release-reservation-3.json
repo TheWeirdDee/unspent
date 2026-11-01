@@ -1,0 +1,14 @@
+{
+  "reservationId": "3",
+  "reserveTx": "0xce7a7c52756daba76df73c7ab558e037f2bf6c0fe57fd95a1a77a8d58be52772",
+  "expiry": "1793502454",
+  "releaseTx": "0xff08c95c6d126b653ba3da2d0b0580c531f4de9ce1e5c04964145ffc5cbde5e4",
+  "releaseBlock": "70134429",
+  "releaseBlockTime": "1793513358",
+  "secondsAfterExpiry": 10904,
+  "releasedBy": "customer wallet, via the independent recovery client",
+  "restoredAvailableMicroUsdc": "100000",
+  "refundTx": "0xb00d0e64fbe3c3c2b39308848dfd243fa2b791558b992afff9e1c6f1486f0e6b",
+  "finalVaultHeld": "0",
+  "finalVaultOwed": "0"
+}
