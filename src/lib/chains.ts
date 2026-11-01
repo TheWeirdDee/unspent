@@ -23,6 +23,10 @@ export const USDC = dep.usdc as Address;
 export const rpcTransport = () => fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${NETWORK}`), ...dep.rpcUrls.map((u) => http(u))]);
 export const publicClient = createPublicClient({ chain: arcChain, transport: rpcTransport() });
 
+/** Read-only client for a specific network (the Proof page reads each network's evidence from that network). */
+export const clientFor = (net: NetworkKey) =>
+  createPublicClient({ transport: fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${net}`), ...deployments[net].rpcUrls.map((u) => http(u))]) });
+
 export const txUrl = (hash: string) => `${dep.explorer}/tx/${hash}`;
 export const addressUrl = (addr: string) => `${dep.explorer}/address/${addr}`;
 export const shortAddr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
