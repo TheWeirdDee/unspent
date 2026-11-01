@@ -2,17 +2,14 @@ import { parseEventLogs, type Address, type Hex } from "viem";
 import { unspentVaultAbi } from "../src/contracts/abi";
 import { RESERVATION_STATUS } from "../src/lib/protocol";
 import { publicClient, relayerClient, relayerAccount, VAULT } from "./config";
+import { ApiError } from "./errors";
 
 export function requireVault(): Address {
   if (!VAULT) throw new ApiError(503, "NOT_DEPLOYED", "No vault is configured for this network");
   return VAULT;
 }
 
-export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string, public extra?: Record<string, unknown>) {
-    super(message);
-  }
-}
+export { ApiError };
 
 let queue: Promise<unknown> = Promise.resolve();
 /** Serialises relayer transactions so nonces never collide. */
@@ -37,7 +34,7 @@ export async function chainNow(): Promise<number> {
 }
 
 /** Simulates then submits a relayer transaction, waits for the receipt, and maps reverts to API errors. */
-export async function relay(functionName: "reserveWithSignature" | "acceptAndSettle", args: readonly unknown[]) {
+export async function relay(functionName: "reserveWithSignature" | "acceptAndSettle", args: readonly unknown[], opts: { onBroadcast?: (hash: Hex) => Promise<void> } = {}) {
   const wallet = relayerClient;
   const account = relayerAccount;
   if (!wallet || !account) throw new ApiError(503, "RELAYER_UNAVAILABLE", "Relayer key is not configured");
@@ -55,10 +52,39 @@ export async function relay(functionName: "reserveWithSignature" | "acceptAndSet
     } catch (e) {
       throw mapRevert(e);
     }
-    const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
+    // The hash is recorded the moment the transaction is broadcast, before anything waits on it.
+    try {
+      await opts.onBroadcast?.(hash);
+    } catch (e) {
+      console.error("could not record the broadcast hash durably:", (e as Error).message); // the transaction is already sent
+    }
+    let receipt;
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: 60_000 });
+    } catch {
+      throw new ApiError(504, "TX_PENDING", "The transaction was submitted but its confirmation has not been seen yet. Check its status in a moment; do not sign again.", { txHash: hash });
+    }
     if (receipt.status !== "success") throw new ApiError(502, "TX_REVERTED", "Transaction reverted onchain", { txHash: hash });
     return { hash, receipt, logs: parseEventLogs({ abi: unspentVaultAbi, logs: receipt.logs }) };
   });
+}
+
+/** Receipt of a previously broadcast transaction, or null if it is not (yet) visible. */
+export async function receiptOf(hash: Hex) {
+  try {
+    const r = await publicClient.getTransactionReceipt({ hash });
+    return { status: r.status as string, logs: parseEventLogs({ abi: unspentVaultAbi, logs: r.logs }) as { eventName?: string; args?: Record<string, unknown> }[] };
+  } catch {
+    return null;
+  }
+}
+
+/** Finds the reservation (if any) created for this customer and request hash within the last ~9,000 blocks. */
+export async function findReservedByRequest(customer: Address, requestHash: Hex): Promise<{ reservationId: string; txHash: Hex } | null> {
+  const head = await publicClient.getBlockNumber();
+  const logs = await publicClient.getContractEvents({ address: requireVault(), abi: unspentVaultAbi, eventName: "UsageReserved", args: { customer }, fromBlock: head > 9000n ? head - 9000n : 0n, toBlock: head });
+  const hit = logs.find((l) => l.args.requestHash?.toLowerCase() === requestHash.toLowerCase());
+  return hit && hit.args.reservationId !== undefined ? { reservationId: hit.args.reservationId.toString(), txHash: hit.transactionHash } : null;
 }
 
 const REVERT_CODES: Record<string, [number, string]> = {
