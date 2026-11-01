@@ -20,27 +20,27 @@ export const PROOF_TESTNET: ProofTx[] = [
 export const PROOF_API: ProofTx[] = [
   {
     "label": "Approve 1.00 USDC (credits unchanged)",
-    "hash": "0xca20fb80758175353850bb4ee177b63d761d9dd21d311f76e596e8ae4e6857e9",
+    "hash": "0x906398565a0d2835399792a0b6a55b10869a3d0da87c024e91b2f7dfba37117c",
     "kind": "api"
   },
   {
     "label": "Deposit 1.00 USDC (CreditsDeposited)",
-    "hash": "0x6841557340b3930d3c062ee7ba284237b66ced3682db7975d2ec02e473d1d840",
+    "hash": "0xaf048e39e842740aabdb3923757ce5057480a2b8eb2a90bc8e3b5a13bbd56072",
     "kind": "api"
   },
   {
     "label": "Reserve 0.10 for a real Gemini request (UsageReserved)",
-    "hash": "0x6e9db47d056b6ce4703175007e3e91afcfa6be4e19597260b58bcd2fd4aa122f",
+    "hash": "0xf1d925ba4beebab701a1f6f5a706a34f1395affc5a017025210526a98535509a",
     "kind": "api"
   },
   {
     "label": "Customer-accepted settlement of 0.10 (UsageSettled, hash of the actual response)",
-    "hash": "0x8f771e46fee9d1f22b359c6d4f315eab2b2c0d0c6644503994bdef08d5bb0a3a",
+    "hash": "0x0c4dfed7e22a4482f5bd7e9eac80f0a2f83dcf5246767458464c540042333f6c",
     "kind": "api"
   },
   {
     "label": "Refund of all remaining available credits (CreditsRefunded)",
-    "hash": "0x2857ace090e22f44241e8471c65a700c0bac0013718695df1712eab88845746c",
+    "hash": "0x35cd458451903a34b1757a7d271139f828bb9f7036f87464719336bf63dfebb9",
     "kind": "api"
   },
   {
