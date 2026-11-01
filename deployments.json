@@ -21,7 +21,10 @@
     "name": "Arc",
     "chainId": 5042,
     "rpcUrls": [
-      "https://rpc.mainnet.arc.io"
+      "https://rpc.mainnet.arc.io",
+      "https://rpc.blockdaemon.mainnet.arc.io",
+      "https://rpc.drpc.mainnet.arc.io",
+      "https://rpc.quicknode.mainnet.arc.io"
     ],
     "explorer": "https://explorer.arc.io",
     "usdc": "0x3600000000000000000000000000000000000000",
