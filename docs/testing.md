@@ -31,6 +31,24 @@ Use API (`scripts/e2e-use-api.ts`): quote verified against the contract, typed-d
 - Keyboard and a11y probe: hamburger is an icon button named "Open navigation" with no visible text; drawer closes on Escape and returns focus; FAQ toggles with Enter and Space; skip link is the first tab stop; with reduced motion the workflow animation does not auto-advance.
 - Screenshots were inspected for landing (dark/light, 375 and 1440), the outage view of the app and the recovery confirm dialog.
 
+## Real Gemini journey on Arc Testnet (final code)
+
+`scripts/e2e-full-journey.ts` drives the app UI in Chromium with a test wallet backed by a sandbox testnet key; the chain, relayer, API and Gemini model are real. 25 of 25 checks passed: approval alone created no credits; deposit created exactly 1.00; the reservation moved 0.10 Available to Reserved without changing liability; the provider was not paid before acceptance; the response was three bullets from the model; the provider payout wallet received exactly 0.10 (checked in native 18-decimal and ERC-20 6-decimal views); `UsageReserved` and `UsageSettled` carried 100000 and the bound payout wallet; the settled response hash equals keccak256 of the response shown on screen; explorer links on screen pointed at the real hashes; the API and the contract both rejected a replayed acceptance and the replay moved no funds; the refund returned all available credits; customer, provider and vault deltas matched exactly (customer includes its own gas); the vault ended with 0 held and 0 owed. Transaction hashes are in `docs/real-journey.json` and on `/proof`. Two earlier runs of this script crashed on a selector bug after settling, so two extra 0.10 settlements exist in history.
+
+Model: the configured Gemini model answered through `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions` (the base URL is stored without that suffix; the code appends it once). It works with the configured free-tier key. I cannot see the Google account's billing status from here, so "free tier" rests on the key being the user's free key; the code contains no paid fallback and no canned responses.
+
+## Abandoned reservation
+
+Reservation #3 (0.10) was left open when the model was not yet configured. Its onchain expiry was 1793502454. It was released at block 70134429 (chain time 1793513358, 10,904 s after expiry) by the customer wallet through the independent recovery client, restoring 100000 micro-USDC to Available; the same client then refunded it. Details: `docs/release-reservation-3.json`. The first release attempt in the script was interrupted by an RPC 429 after the transaction had already confirmed; the state above was read back from the chain.
+
+## Deployed bytecode
+
+The deployed testnet runtime bytecode equals the freshly compiled artifact with the 15 immutable slots masked (identical keccak), and `registerProvider(vault)` and `registerProvider(USDC)` revert with `InvalidPayoutWallet` when simulated against the deployed address. The payout-wallet fix was applied before deployment; no redeploy was needed.
+
+## Authentication and exposure
+
+`scripts/test-auth.ts`: 13 of 13 passed. It also found a real exposure: the Vite dev server was serving `data/state.json` (which held plaintext bearer tokens) and server source. Fixed with `server.fs.deny`, hashed tokens at rest and a migration; see `docs/authentication.md`.
+
 ## Not verified
 
 Real wallets (MetaMask, Rabby) on a physical browser; mobile devices; the real API journey; recovery with a wallet on the wrong network end to end; Firefox and Safari; mainnet anything.
