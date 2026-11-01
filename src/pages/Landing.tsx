@@ -4,7 +4,7 @@ import { HeroVisual } from "@/components/landing/HeroVisual";
 import { WorkflowDiagram } from "@/components/landing/WorkflowDiagram";
 import { Faq, type FaqItem } from "@/components/landing/Faq";
 import { RECOVERY_URL } from "@/components/Layouts";
-import { PROOF_TESTNET } from "@/lib/proof";
+import { PROOF_MAINNET, PROOF_TESTNET } from "@/lib/proof";
 import { addressUrl, dep, txUrl, VAULT } from "@/lib/chains";
 import { useProviderOnchain, PROVIDER_ID } from "@/hooks/useVault";
 
@@ -144,7 +144,7 @@ export default function Landing() {
             <div className="card p-5"><dt className="text-xs text-muted">Deployed at block</dt><dd className="money mt-1 text-lg font-medium">{dep.deploymentBlock ?? "—"}</dd><a className="link text-xs" href={dep.deploymentTx ? txUrl(dep.deploymentTx) : undefined} target="_blank" rel="noopener noreferrer">deployment transaction</a></div>
             <div className="card p-5"><dt className="text-xs text-muted">Provider {PROVIDER_ID?.toString() ?? "—"} payout wallet</dt><dd className="mt-1 break-all">{prov.data ? <a className="link mono" href={addressUrl(prov.data.payoutWallet)} target="_blank" rel="noopener noreferrer">{prov.data.payoutWallet}</a> : "Reading…"}</dd></div>
           </dl>
-          <p className="mt-4 text-sm text-muted">{PROOF_TESTNET.length} testnet transactions are recorded, covering deposit, reservation, settlement, expiry release and refund. Mainnet is not deployed yet; it needs your explicit approval.</p>
+          <p className="mt-4 text-sm text-muted">{PROOF_TESTNET.length} testnet transactions are recorded, covering deposit, reservation, settlement, expiry release and refund. A small mainnet demonstration ({PROOF_MAINNET.length} transactions, real USDC, unaudited contract) is recorded on the proof page.</p>
         </div>
       </section>
 
@@ -198,7 +198,7 @@ await relayer.writeContract({
       {/* FINAL ACTION */}
       <section className="border-t border-line" aria-labelledby="final-title">
         <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 sm:py-28">
-          <h2 id="final-title" className="text-balance text-3xl font-semibold sm:text-4xl">Try it with a few dollars of testnet USDC.</h2>
+          <h2 id="final-title" className="text-balance text-3xl font-semibold sm:text-4xl">{dep.chainId === 5042 ? "Try it with a small amount of USDC. The contract is unaudited." : "Try it with a few dollars of testnet USDC."}</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted">Deposit, run one real API call, accept it, and withdraw the rest. The whole loop takes a few minutes.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             <Link to="/app" className="btn btn-primary">Open app <ArrowRight size={16} aria-hidden /></Link>
