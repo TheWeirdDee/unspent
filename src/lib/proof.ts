@@ -17,6 +17,18 @@ export const PROOF_TESTNET: ProofTx[] = [
   { label: "Refund 0.90 USDC (CreditsRefunded)", hash: "0x497da0be6e73594f77cddca0c06c1d7975000232a082130f0f759339fd80fee3", kind: "protocol" },
 ];
 
+// Arc mainnet (chain 5042), 1 Nov 2026: one small real-funds demonstration, signed by the owner in their own MetaMask.
+// The contract is unaudited. MetaMask flagged both UNSPENT domains at connection; the owner chose to proceed (review requested).
+export const PROOF_MAINNET: ProofTx[] = [
+  { label: "Deploy UnspentVault (constructor: Arc USDC)", hash: "0xdfb7ece69d947060224e8f085fe8c2fa3bd4d2fab8630e5b0085d79e2a659b30", kind: "setup" },
+  { label: "Register provider TextLab (provider 1; owner and payout are the same wallet)", hash: "0xe9668ea23884169a7372e192471df592ac005f000ba2479985a2338bac999df5", kind: "setup" },
+  { label: "Approve 0.20 USDC (credits unchanged)", hash: "0xacf2c7989ebf3ad029796a9dff5dd25e40b971616201623005bce2349d8f0b84", kind: "api" },
+  { label: "Deposit 0.20 USDC (CreditsDeposited)", hash: "0x3cae816db4c81a692c7efa3ab8dcad7442fc2934c1371470be54b40ec9d49cbf", kind: "api" },
+  { label: "Reserve 0.10 for a real Gemini request (UsageReserved #1, relayer-submitted, customer-signed)", hash: "0x95c1399e5ca61df72671c67f8462580501f8dd5e476ab9d7cea3a7ba6502a1b1", kind: "api" },
+  { label: "Customer-accepted settlement of 0.10 to the payout wallet (UsageSettled, hash of the actual response)", hash: "0xf69425cd83bb79a8337913cc468925ff189d718b34022e6c39939b69162d601f", kind: "api" },
+  { label: "Refund of the remaining 0.10 (CreditsRefunded)", hash: "0x0b8c3b32e777677f1ea41e449db4882f53f35c1bc1ee02f033132bad38bdd11b", kind: "api" },
+];
+
 export const PROOF_API: ProofTx[] = [
   {
     "label": "Approve 1.00 USDC (credits unchanged)",
