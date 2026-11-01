@@ -1,11 +1,12 @@
-import { recoverTypedDataAddress, isAddress, isHex, type Address, type Hex } from "viem";
+import { recoverTypedDataAddress, isAddress, isHex, keccak256, stringToHex, type Address, type Hex } from "viem";
 import { randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { ACCEPT_TYPES, RESERVE_TYPES, canonicalRequestHash, responseHashOf, vaultDomain, SERVICE_ID, MAX_INPUT_CHARS } from "../src/lib/protocol";
 import { chain, config, dep, NETWORK, PROVIDER_ID, publicClient, relayerAccount, rpcSource, VAULT } from "./config";
-import { ApiError, chainNow, readProvider, readReservation, relay, requireVault } from "./chain";
+import { ApiError, chainNow, findReservedByRequest, readProvider, readReservation, receiptOf, relay, requireVault } from "./chain";
 import { store, hashToken, tokenMatches, persistence, type RequestRecord } from "./store";
 import { ModelError, modelConfigured, summarise } from "./llm";
+import { OutputCache, reconcileAll, reconcileRecord, runExecute, submitReservation, submitSettlement, type ExecDeps, type ReconcileDeps, type SubmitDeps } from "./lifecycle";
 
 // ---- simulated outage (demo only; never touches contract state or recovery routes) ----
 const outage = { active: false, since: 0, until: 0, reason: "" };
@@ -51,9 +52,23 @@ const addr = z.string().refine(isAddress, "invalid address").transform((a) => a 
 const hex = z.string().refine((h) => isHex(h), "invalid hex").transform((h) => h as Hex);
 const decimalStr = z.string().regex(/^\d+$/);
 
-const outputCache = new Map<string, { output: string; at: number }>();
-const sweep = () => {
-  for (const [k, v] of outputCache) if (Date.now() - v.at > 30 * 60_000) outputCache.delete(k);
+// Responses are kept in memory only, for a strict 30 minutes (enforced on every read) and are cleared on restart.
+const outputCache = new OutputCache();
+const execDeps: ExecDeps = {
+  store,
+  cache: outputCache,
+  inputHashOf: (t) => keccak256(stringToHex(t)),
+  responseHashOf,
+  readReservation,
+  chainNow,
+  summarise,
+  errorCodeOf: (e) => (e instanceof ModelError ? e.code : "MODEL_UNAVAILABLE"),
+  limits: { dailyGlobal: config.llm.dailyGlobal, dailyPerCustomer: config.llm.dailyPerCustomer, executeSafetyMarginSec: config.executeSafetyMarginSec },
+};
+const submitDeps: SubmitDeps = { store, relay: (fn, args, opts) => relay(fn, args, opts) as ReturnType<SubmitDeps["relay"]> };
+const reconcileDeps: ReconcileDeps = { store, receiptOf, readReservation, findReserved: (c, h) => findReservedByRequest(c as Address, h as Hex) };
+const reconcilePending = async (rec: RequestRecord) => {
+  if (rec.state === "reserving" || rec.state === "settling") await reconcileRecord(rec, reconcileDeps).catch(() => false);
 };
 
 function publicRecord(r: RequestRecord) {
@@ -199,6 +214,7 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
   if (path === "/api/v1/usage/reservations" && m === "POST") {
     const b = z.object({ requestId: z.string(), accessToken: z.string(), signature: hex }).parse(body);
     const rec = authorised(store.get(b.requestId), b.accessToken);
+    await reconcilePending(rec); // a submission whose confirmation was not seen yet may have landed since
     if (rec.state === "reserved" || rec.state === "executing" || rec.state === "delivered" || rec.state === "settled" || rec.state === "settling") {
       return json({ ...publicRecord(rec), idempotentReplay: true });
     }
@@ -218,74 +234,23 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
     };
     const signer = await recoverTypedDataAddress({ domain: vaultDomain(dep.chainId, requireVault()), types: RESERVE_TYPES, primaryType: "ReserveAuthorisation", message, signature: b.signature }).catch(() => null);
     if (signer?.toLowerCase() !== rec.customer.toLowerCase()) throw new ApiError(400, "INVALID_SIGNATURE", "Signature does not match the quoted authorisation");
-    rec.state = "reserving";
-    store.put(rec);
-    try {
-      const { hash, logs } = await relay("reserveWithSignature", [message, b.signature]);
-      const ev = logs.find((l) => l.eventName === "UsageReserved");
-      if (!ev || ev.eventName !== "UsageReserved") throw new ApiError(502, "TX_REVERTED", "UsageReserved event missing");
-      rec.reservationId = ev.args.reservationId.toString();
-      rec.reserveTx = hash;
-      rec.state = "reserved";
-      store.put(rec);
-      return json(publicRecord(rec));
-    } catch (e) {
-      rec.state = "failed_before_service";
-      rec.errorCode = e instanceof ApiError ? e.code : "UNKNOWN";
-      store.put(rec);
-      throw e;
-    }
+    await submitReservation(rec, message, b.signature, submitDeps);
+    return json(publicRecord(rec));
   }
 
   const em = path.match(/^\/api\/v1\/usage\/(req_[a-f0-9]+)\/execute$/);
   if (em && m === "POST") {
     const b = z.object({ accessToken: z.string(), text: z.string().min(1).max(MAX_INPUT_CHARS) }).parse(body);
     const rec = authorised(store.get(em[1]), b.accessToken);
-    if (rec.state === "delivered" || rec.state === "settling" || rec.state === "settled") {
-      const cached = outputCache.get(rec.requestId);
-      return json({ ...publicRecord(rec), output: cached?.output ?? null, outputAvailable: Boolean(cached), idempotentReplay: true });
-    }
-    if (rec.state !== "reserved") throw new ApiError(409, "INVALID_STATE", `Request is ${rec.state}; a reservation must be confirmed first`);
-    if (!rec.reservationId) throw new ApiError(409, "INVALID_STATE", "No reservation");
-    const { keccak256, stringToHex } = await import("viem");
-    if (keccak256(stringToHex(b.text)) !== rec.inputHash) throw new ApiError(400, "INPUT_MISMATCH", "Text does not match the quoted input hash");
-    // Execute only if the CONTRACT confirms an open reservation matching this exact request.
-    const r = await readReservation(BigInt(rec.reservationId));
-    const now = await chainNow();
-    if (r.statusName !== "Reserved") throw new ApiError(409, r.statusName === "Settled" ? "ALREADY_SETTLED" : "RESERVATION_NOT_OPEN", `Reservation is ${r.statusName}`);
-    if (r.customer.toLowerCase() !== rec.customer.toLowerCase() || r.providerId.toString() !== rec.providerId || r.maxAmount.toString() !== rec.maxAmount || r.requestHash !== rec.requestHash) {
-      throw new ApiError(409, "RESERVATION_MISMATCH", "Onchain reservation does not match the quoted request");
-    }
-    if (now + config.executeSafetyMarginSec >= Number(r.expiry)) throw new ApiError(409, "RESERVATION_EXPIRED", "Too little time remains before the reservation expires");
-    const use = store.usageToday(rec.customer);
-    if (use.global >= config.llm.dailyGlobal || use.customer >= config.llm.dailyPerCustomer) {
-      throw new ApiError(429, "BUDGET_EXHAUSTED", "Sample model budget exhausted for today. Your reserved credit stays safe and is releasable after expiry.");
-    }
-    rec.state = "executing";
-    store.put(rec);
-    store.bumpUsage(rec.customer); // counted before the call: a verified reservation is never charged to a second model call
-    try {
-      const out = await summarise(b.text);
-      rec.responseHash = responseHashOf(out.output);
-      rec.serviceModel = out.model;
-      rec.latencyMs = out.latencyMs;
-      rec.state = "delivered";
-      store.put(rec);
-      outputCache.set(rec.requestId, { output: out.output, at: Date.now() });
-      sweep();
-      return json({ ...publicRecord(rec), output: out.output, usageAmountMicrounits: rec.maxAmount, deliveryStatus: "delivered_awaiting_acceptance" });
-    } catch (e) {
-      rec.state = "service_failed";
-      rec.errorCode = e instanceof ModelError ? e.code : "MODEL_UNAVAILABLE";
-      store.put(rec);
-      throw new ApiError(502, rec.errorCode, `No completed result: ${(e as Error).message}. Your reserved credit stays reserved until it expires, then you can release it.`, { requestId: rec.requestId, reservationId: rec.reservationId, expiry: rec.expiry });
-    }
+    const { output, replay } = await runExecute(rec, b.text, execDeps);
+    return json({ ...publicRecord(rec), output, usageAmountMicrounits: rec.maxAmount, ...(replay ? { outputAvailable: true, idempotentReplay: true } : { deliveryStatus: "delivered_awaiting_acceptance" }) });
   }
 
   const am = path.match(/^\/api\/v1\/usage\/(req_[a-f0-9]+)\/accept$/);
   if (am && m === "POST") {
     const b = z.object({ accessToken: z.string(), signature: hex, nonce: decimalStr, deadline: decimalStr }).parse(body);
     const rec = authorised(store.get(am[1]), b.accessToken);
+    await reconcilePending(rec);
     // A second acceptance for an already-settled request must FAIL. The contract would also revert (ReservationNotOpen).
     if (rec.state === "settled") throw new ApiError(409, "ALREADY_SETTLED", "This request was already settled; a replayed acceptance is rejected and no new transaction is sent.", { settleTx: rec.settleTx });
     if (rec.state === "settling") throw new ApiError(409, "IN_PROGRESS", "Settlement is already being submitted");
@@ -293,27 +258,16 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
     const message = { customer: rec.customer, reservationId: BigInt(rec.reservationId), responseHash: rec.responseHash, amount: BigInt(rec.maxAmount), nonce: BigInt(b.nonce), deadline: BigInt(b.deadline) };
     const signer = await recoverTypedDataAddress({ domain: vaultDomain(dep.chainId, requireVault()), types: ACCEPT_TYPES, primaryType: "DeliveryAcceptance", message, signature: b.signature }).catch(() => null);
     if (signer?.toLowerCase() !== rec.customer.toLowerCase()) throw new ApiError(400, "INVALID_SIGNATURE", "Acceptance signature does not match the delivered response");
-    rec.state = "settling";
-    store.put(rec);
-    try {
-      const { hash } = await relay("acceptAndSettle", [message, b.signature]);
-      rec.settleTx = hash;
-      rec.state = "settled";
-      store.put(rec);
-      return json(publicRecord(rec));
-    } catch (e) {
-      rec.state = "delivered"; // still deliverable: the same signed acceptance can be retried while valid
-      store.put(rec);
-      throw e;
-    }
+    await submitSettlement(rec, message, b.signature, submitDeps);
+    return json(publicRecord(rec));
   }
 
   const gm = path.match(/^\/api\/v1\/usage\/(req_[a-f0-9]+)$/);
   if (gm && m === "GET") {
     const rec = authorised(store.get(gm[1]), req.headers.get("authorization")?.replace(/^Bearer\s+/i, ""));
+    await reconcilePending(rec);
     const chainState = rec.reservationId ? await readReservation(BigInt(rec.reservationId)).catch(() => null) : null;
-    const cached = outputCache.get(rec.requestId);
-    return json({ ...publicRecord(rec), onchainStatus: chainState?.statusName ?? null, output: cached?.output ?? null });
+    return json({ ...publicRecord(rec), onchainStatus: chainState?.statusName ?? null, output: outputCache.get(rec.requestId) ?? null });
   }
 
   if (path === "/api/v1/provider/overview" && m === "GET") {
@@ -351,3 +305,5 @@ const server = Bun.serve({
   },
 });
 console.log(`unspent api on :${server.port} network=${NETWORK} vault=${VAULT} provider=${PROVIDER_ID} rpc=${rpcSource} model=${modelConfigured() ? config.llm.model : "NOT CONFIGURED"}`);
+// Bring records left in a transitional state by a restart in line with the chain (never calls the model or the relayer).
+reconcileAll(reconcileDeps).then((r) => { if (r.checked) console.log(`reconciled ${r.changed}/${r.checked} interrupted request record(s)`); }).catch((e) => console.error("startup reconcile failed:", (e as Error).message));
