@@ -144,7 +144,7 @@ function StatusStrip() {
     s.kind === "loading" ? "Checking billing backend…"
     : s.kind === "online" ? "Billing backend online"
     : s.kind === "simulated-outage" ? "SIMULATED APPLICATION BACKEND OUTAGE (demo toggle). Onchain balances and recovery are unaffected."
-    : "Billing backend unreachable. Your balance is still read directly from the contract.";
+    : "Billing backend unreachable: it may be waking up (a free host can take about a minute) or offline. Your balance is still read directly from the contract.";
   const tone = s.kind === "online" ? "text-muted" : s.kind === "loading" ? "text-faint" : "text-warn";
   return (
     <div className="border-b border-line bg-surface/60">
