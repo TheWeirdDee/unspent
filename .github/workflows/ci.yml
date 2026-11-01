@@ -1,0 +1,52 @@
+# Checks every push and pull request: frozen-lockfile install, lint, typecheck, unit tests, both production builds,
+# and the contract build and tests. A manual success on one machine does not protect a later commit; this does.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test:unit
+      - run: bun run build
+        env:
+          VITE_NETWORK: mainnet
+
+  recovery:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: recovery
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: recovery/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm audit --omit=dev
+
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.7
+      - run: forge build
+      - run: forge test
