@@ -17,6 +17,8 @@
     "sync:deployments": "bun scripts/sync-deployments.ts"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/inter-tight": "5.3.0",
     "@openzeppelin/contracts": "5.6.1",
     "@tanstack/react-query": "5.105.0",
     "gsap": "3.15.0",

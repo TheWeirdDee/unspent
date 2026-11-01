@@ -5,7 +5,7 @@ export const NETWORK: NetworkKey = (import.meta.env.VITE_NETWORK as NetworkKey |
 export const dep = deployments[NETWORK];
 
 export const arcChain = defineChain({
-  id: dep.chainId,
+  id: dep.chainId as number,
   name: dep.name,
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, // native gas view; ledger uses the 6-decimal ERC-20 view
   rpcUrls: { default: { http: [...dep.rpcUrls] } },
