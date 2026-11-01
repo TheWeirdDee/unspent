@@ -4,7 +4,7 @@ Refundable, USDC-backed prepaid API credits on Arc. A deposit and its credits ar
 
 ## Read this first (disclosures)
 
-- **The contract is not independently audited.** It has 193 passing Foundry tests (192 tests plus 8 invariant properties, with fuzzing) and an internal review. Nothing here claims otherwise.
+- **The contract is not independently audited.** It has 200 checks (192 tests plus 8 invariant properties, with fuzzing; Foundry 1.8.7 prints 193 because it counts the invariant campaign as one test) and an internal review. A separate independent review of the deployed app and repository (not an audit of the contract) found eight application issues; they are addressed and recorded in [docs/audit-response.md](audit-response.md), including what is still limited. Nothing here claims otherwise.
 - **MetaMask flags both UNSPENT domains with a "deceptive site / signs of phishing or wallet-draining activity" warning at wallet connection.** The cause is unknown and **unresolved**. A review request is open: https://github.com/MetaMask/eth-phishing-detect/issues/308206. The owner reviewed each request and chose to proceed on their own funds. Nothing in the app hides or bypasses the warning.
 - **The mainnet evidence is one small run** (0.20 USDC deposited, 0.10 USDC settled to the provider payout wallet, 0.10 USDC refunded), not a production claim. The provider's owner and payout wallet are the same wallet. The app is **not** described as mainnet-ready.
 - **No outage test has been run on mainnet.** The mainnet payment journey ran with the API online. The outage test below is a testnet test.
@@ -22,7 +22,7 @@ Refundable, USDC-backed prepaid API credits on Arc. A deposit and its credits ar
 | Mainnet contract (Arc, chain 5042) | [`0xa73723023a25fB400A153AE82F7A87B93d305f49`](https://explorer.arc.io/address/0xa73723023a25fB400A153AE82F7A87B93d305f49) |
 | Testnet contract (Arc Testnet, chain 5042002) | [`0x080442a50d3bdf7d1aa5ed6d9383b39a8a413f85`](https://explorer.testnet.arc.io/address/0x080442a50d3bdf7d1aa5ed6d9383b39a8a413f85) |
 
-**Arc Studio project access is unverified.** It is an owner-only link: a reviewer who opens it is redirected to Studio's public homepage. No public share link has been generated or recorded. To give reviewers access, the owner has to create one from Studio's share menu and add it here (the app's proof page shows it when `VITE_STUDIO_SHARE_URL` is set). Until then the GitHub history below is the verifiable record of the Studio work.
+**The Arc Studio project link is owner-only.** Opening it without signing in as the owner lands on Studio's public homepage, so a reviewer cannot browse the build history through it. Studio's Share menu offers hosting integrations (Netlify, Hugging Face, Vercel), not a public project-history link, so there is no public share link to generate and none is claimed. The project URL above is the real one; the walkthrough shows the genuine Studio build history on screen, and the GitHub history below is the public, verifiable record of the Studio work.
 
 ## Mainnet transaction links (1 Nov 2026, Arc chain 5042)
 
@@ -72,10 +72,11 @@ The split below is taken from the git history (author of each commit), not from 
 **After Studio** (over 40 commits authored by the owner's git account through Claude Code in VS Code, starting at `b1fa8e4`, after the last Studio commit `491a509`; plus actions outside git):
 - Recovery client build fix (the Vite config had no Node types) and a recovery lockfile.
 - Dependency advisories reduced from 6 to 2 (patched overrides for `ws`, `uuid`, `decode-uri-component`; the remaining two are `zod@3`, not in the served bundle).
-- Contract rebuilt from a clean clone and checked byte for byte against the testnet deployment; tests re-run (193 pass).
+- Contract rebuilt from a clean clone and checked byte for byte against the testnet deployment; tests re-run (192 tests and 8 invariant properties pass).
 - Mainnet deployment tooling (a local page where the owner's own wallet signs), recording of the mainnet deployment, the proof page's mainnet section, and mainnet documentation.
 - A fix for ad and privacy blockers cancelling every `*.arc.io` RPC request (same-origin RPC path in the app; a read-only same-origin pass-through function and a mainnet default in the recovery client; fallback RPC endpoints).
 - A CSS layering fix (desktop navigation) and accuracy fixes to the README, landing text and project notes.
+- Fixes from an independent review of the deployed app: the browser re-hashes the response before signing acceptance, one model call per reservation, resuming an in-flight request after a refresh, reconciliation after restarts, tablet navigation, stale-result guards in the recovery client, and CI. Per finding, with tests and limits: [docs/audit-response.md](audit-response.md).
 - Outside git: the Cloudflare Pages project and deployments, Vercel environment changes, the Render mainnet service and Neon database (created by the owner), and every mainnet transaction (signed by the owner in their own MetaMask).
 
 ## How to verify
@@ -88,4 +89,4 @@ The split below is taken from the git history (author of each commit), not from 
 
 ## Known open items
 
-MetaMask classification (above); no audit; no mainnet outage test; Studio project access for reviewers; the testnet API service on Render should be suspended when unused to stay within free-plan hours.
+MetaMask classification (above); no audit; no mainnet outage test; the Studio project link is owner-only (reviewers cannot open it); the API is single-instance with snapshot persistence and no database fault-injection testing (F5 in the audit response); the Vercel `/rpc` rewrite is not allowlisted like the Cloudflare relay; the testnet API service on Render should be suspended when unused to stay within free-plan hours.
