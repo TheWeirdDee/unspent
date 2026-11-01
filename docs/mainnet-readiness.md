@@ -82,7 +82,7 @@ Only 0.10 USDC of the 1.00 is paid out (to your own payout wallet); the rest is 
 
 After each one: verify the receipt, decode the events, and re-read balances from the chain. After #1 also read `usdc()` and compare the deployed runtime code with the artifact before anything is registered.
 
-**Using the console (steps 1 and 2).** `forge build`, then `node scripts/mainnet-console.ts <out.html>`, then serve the page from localhost (for example `python -m http.server 8099 --bind 127.0.0.1`) and open it in the browser with MetaMask. It shows From, To, Value, the constructor argument, the creation-code keccak, the data SHA-256 (recomputed in the page), a live gas estimate and a fee estimate, and sends nothing until MetaMask is confirmed. The page cannot read or hold keys.
+**Using the console (steps 1 and 2).** `forge build`, then `bun scripts/mainnet-console.ts <out.html>`, then serve the page from localhost (for example `python -m http.server 8099 --bind 127.0.0.1`) and open it in the browser with MetaMask. It shows From, To, Value, the constructor argument, the creation-code keccak, the data SHA-256 (recomputed in the page), a live gas estimate and a fee estimate, and sends nothing until MetaMask is confirmed. The page cannot read or hold keys.
 
 ## Hosting changes after deployment
 
