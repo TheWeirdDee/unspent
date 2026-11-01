@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatUnits, isAddress, parseAbiItem, type Address, type Hex } from "viem";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { formatUnits, isAddress, pad, parseAbiItem, toEventSelector, toHex, type Address, type Hex } from "viem";
 import { unspentVaultAbi } from "./contracts/abi";
 import { deployments, type NetworkKey } from "./contracts/deployments";
 import { buildClients, customRpc, fmt, parse, pickNetwork, short, type Clients } from "./chain";
@@ -69,6 +69,7 @@ export default function App() {
   const wrongNet = Boolean(session && session.chainId !== c.dep.chainId);
   const demo = new URLSearchParams(location.search).get("demo") === "simulated-outage";
 
+  const scan = useRef<{ key: string; next: bigint; reserved: Set<string>; closed: Set<string> }>({ key: "", next: 0n, reserved: new Set(), closed: new Set() });
   const load = useCallback(async () => {
     if (!c.vault || !customer || providerId === null) return;
     setLoading(true);
@@ -76,26 +77,31 @@ export default function App() {
       const block = await c.publicClient.getBlockNumber();
       const [a, r, d, s, rf] = await c.publicClient.readContract({ address: c.vault, abi: unspentVaultAbi, functionName: "getAccount", args: [providerId, customer], blockNumber: block });
       setAcct({ available: a, reserved: r, deposited: d, settled: s, refunded: rf, block, at: Date.now() });
-      const from = BigInt(c.dep.deploymentBlock ?? 0);
+      // One filtered eth_getLogs per block range (customer and provider are indexed topics), scanned
+      // incrementally: the first load walks from the deployment block, later polls read only new blocks.
+      const key = `${c.dep.chainId}:${c.vault}:${customer}:${providerId}`;
+      if (scan.current.key !== key) scan.current = { key, next: BigInt(c.dep.deploymentBlock ?? 0), reserved: new Set(), closed: new Set() };
+      const sc = scan.current;
+      const topics = [[toEventSelector(EV_RESERVED), toEventSelector(EV_SETTLED), toEventSelector(EV_RELEASED)], null, pad(toHex(providerId), { size: 32 }), pad(customer, { size: 32 })];
       let step = 20_000n;
-      const reserved: { id: bigint }[] = [];
-      const closed = new Set<string>();
-      for (let start = from; start <= block; ) {
+      for (let start = sc.next; start <= block; ) {
         const end = start + step - 1n > block ? block : start + step - 1n;
         try {
-          const [rs, ss, rel] = await Promise.all([
-            c.publicClient.getLogs({ address: c.vault, event: EV_RESERVED, args: { customer, providerId }, fromBlock: start, toBlock: end }),
-            c.publicClient.getLogs({ address: c.vault, event: EV_SETTLED, args: { customer, providerId }, fromBlock: start, toBlock: end }),
-            c.publicClient.getLogs({ address: c.vault, event: EV_RELEASED, args: { customer, providerId }, fromBlock: start, toBlock: end }),
-          ]);
-          rs.forEach((l) => reserved.push({ id: l.args.reservationId! }));
-          [...ss, ...rel].forEach((l) => closed.add(l.args.reservationId!.toString()));
+          const logs = (await c.publicClient.request({ method: "eth_getLogs", params: [{ address: c.vault, fromBlock: toHex(start), toBlock: toHex(end), topics }] as never })) as { topics: Hex[] }[];
+          for (const l of logs) {
+            const id = BigInt(l.topics[1]!).toString();
+            if (l.topics[0] === toEventSelector(EV_RESERVED)) sc.reserved.add(id);
+            else sc.closed.add(id);
+          }
           start = end + 1n;
+          sc.next = start;
         } catch (e) {
           if (step > 1_000n) step /= 2n;
           else throw e;
         }
       }
+      const reserved = [...sc.reserved].map((id) => ({ id: BigInt(id) }));
+      const closed = sc.closed;
       const open: OpenRes[] = [];
       for (const x of reserved.filter((x) => !closed.has(x.id.toString()))) {
         const rr = await c.publicClient.readContract({ address: c.vault, abi: unspentVaultAbi, functionName: "getReservation", args: [x.id], blockNumber: block });
@@ -112,7 +118,7 @@ export default function App() {
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    const t = setInterval(() => void load(), 15_000);
+    const t = setInterval(() => void load(), 30_000);
     return () => clearInterval(t);
   }, [load]);
 
