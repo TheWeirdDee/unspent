@@ -5,7 +5,8 @@ export function pickNetwork(): NetworkKey {
   const q = new URLSearchParams(location.search).get("network");
   if (q === "mainnet" || q === "testnet") return q;
   const saved = localStorage.getItem("unspent-recovery-network");
-  return saved === "mainnet" || saved === "testnet" ? saved : "testnet";
+  if (saved === "mainnet" || saved === "testnet") return saved;
+  return deployments.mainnet.vault ? "mainnet" : "testnet"; // the live network by default; ?network=testnet or the selector switches
 }
 
 export function customRpc(net: NetworkKey): string[] {
@@ -15,6 +16,11 @@ export function customRpc(net: NetworkKey): string[] {
 export function buildClients(net: NetworkKey) {
   const dep = deployments[net];
   const urls = [...customRpc(net), ...dep.rpcUrls];
+  // Same-origin /rpc/<network> (an RPC pass-through on the host, not the UNSPENT API) goes right after the user's own
+  // endpoints: filter lists such as EasyPrivacy cancel every cross-site request to *.arc.io. Hosts without it just fail
+  // over to the direct endpoints below.
+  const sameOrigin = typeof location !== "undefined" && /^https?:$/.test(location.protocol) ? [`${location.origin}/rpc/${net}`] : [];
+  const transportUrls = [...customRpc(net), ...sameOrigin, ...dep.rpcUrls];
   const chain = defineChain({
     id: dep.chainId as number,
     name: dep.name,
@@ -22,7 +28,7 @@ export function buildClients(net: NetworkKey) {
     rpcUrls: { default: { http: urls } },
     blockExplorers: { default: { name: "Arc Explorer", url: dep.explorer } },
   });
-  const publicClient = createPublicClient({ chain, transport: fallback(urls.map((u) => http(u, { timeout: 10_000 })), { rank: false }) });
+  const publicClient = createPublicClient({ chain, transport: fallback(transportUrls.map((u) => http(u, { timeout: 10_000 })), { rank: false }) });
   return { dep, chain, publicClient, urls, vault: (dep.vault ?? undefined) as Address | undefined };
 }
 
