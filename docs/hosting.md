@@ -1,6 +1,15 @@
-# Hosting plan (free services only; nothing here is deployed yet)
+# Hosting (free services only)
 
-Status: the stack runs locally and in the Arc Studio sandbox. No external hosting account is connected, so none of the hosted components below exist yet. Each needs an account you create; none requires a paid plan or a card for the tiers named, per the providers' own docs checked on 1 Nov 2026 (Render free web service, Render/Neon free Postgres notes, Neon free plan). Re-check limits before relying on them.
+Status (1 Nov 2026): the components below are deployed. The table underneath is the original plan, kept for the reasoning behind each choice.
+
+| Component | Where it runs now |
+|---|---|
+| App | Vercel project `unspent`: https://unspent-xi.vercel.app. Built for Arc mainnet (`VITE_NETWORK=mainnet`); `vercel.json` also forwards `/rpc/mainnet` and `/rpc/testnet` to Arc's public RPC so reads are same-origin. |
+| Mainnet API + relayer | Render free web service `unspent-api-mainnet` (https://unspent-api-mainnet.onrender.com), own Neon Postgres database. |
+| Testnet API + relayer | Render free web service `unspent-api` (blueprint `render.yaml`). Suspend it when unused: the free tier shares 750 instance hours across services. |
+| Independent recovery client | Cloudflare Pages project `unspent-recovery`: https://unspent-recovery.pages.dev (a different provider and domain from the app). Opens on mainnet; `?network=testnet` for testnet. `recovery/functions/rpc/[net].ts` is an optional read-only RPC pass-through (not the UNSPENT API) for browsers whose blockers cancel `*.arc.io`; without it the client uses the direct endpoints. Deploy from `recovery/` with `wrangler pages deploy dist` so the function is included. |
+
+Each hosted component was set up with a free plan. Re-check provider limits before relying on them.
 
 | Component | Service (free tier) | Notes |
 |---|---|---|
