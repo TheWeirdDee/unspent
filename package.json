@@ -14,6 +14,7 @@
     "lint": "oxlint src server scripts recovery/src",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p recovery/tsconfig.json && tsc --noEmit -p recovery/tsconfig.node.json",
     "check": "bun run lint && bun run typecheck",
+    "test:unit": "bun test",
     "sync:deployments": "bun scripts/sync-deployments.ts",
     "start": "bun server/index.ts",
     "gen:testnet-keys": "bun scripts/gen-testnet-keys.ts"
