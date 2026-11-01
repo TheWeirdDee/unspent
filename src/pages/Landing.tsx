@@ -78,7 +78,7 @@ export default function Landing() {
             {[
               ["Who", "Developers buying API usage, and small API providers who want customers to trust prepaid balances."],
               ["What", "Prepaid credits backed 1:1 by USDC in a smart contract, refundable until spent."],
-              ["Why", "So a failed backend step can never strand your money or your refund."],
+              ["Why", "So a failed backend step cannot stop you withdrawing your available credits. Credits reserved for a request return once the reservation expires."],
               ["How", "Deposit once. Sign a limit per call. Accept the response to pay. Withdraw the rest."],
               ["When", "Any time you prepay for usage and want to keep the right to take the unspent part back."],
             ].map(([k, v]) => (
@@ -105,7 +105,7 @@ export default function Landing() {
             <p className="label">Independent recovery</p>
             <h2 id="rec-title" className="mt-3 text-balance text-3xl font-semibold sm:text-4xl">If the app is down, your money isn’t stuck.</h2>
             <p className="mt-4 leading-relaxed text-muted">
-              The recovery client is a separate static page with the contract address and ABI built in. It talks to an Arc RPC and your wallet directly. No login, no database, no indexer, no relayer, and no call to the UNSPENT API.
+              The recovery client is a separate static site with the contract address and ABI built in. It reads Arc through an RPC (directly, or through a read-only pass-through on its own host for browsers whose blockers cancel Arc's domains) and sends transactions from your wallet. No login, no database, no indexer, no relayer, and no call to the UNSPENT API.
             </p>
             <p className="mt-3 leading-relaxed text-muted">
               Two different tests back this up. The app has a labelled demo switch that simulates a backend outage. Separately, on Arc Testnet we actually suspended the hosted API at its host and used the recovery client to release two expired reservations and refund 1.00 USDC (<a className="link" href="https://github.com/TheWeirdDee/unspent/blob/main/docs/fresh-wallet-recovery-test.md" target="_blank" rel="noopener noreferrer">record</a>). We have not run an outage test on mainnet: the mainnet payment journey ran with the API online.
@@ -169,16 +169,23 @@ const hash = await relayer.writeContract({
   args: [authorisation, signature],
 });
 
-// 2. Run the service ONLY if the contract shows the reservation.
+// 2. Run the service ONLY if the contract shows THIS customer's open
+//    reservation for THIS request, with time left, and only once.
 const r = await client.readContract({
   address: VAULT, abi: unspentVaultAbi,
   functionName: "getReservation", args: [reservationId],
 });
-if (r.status !== 1 /* Reserved */) throw new Error("not reserved");
-const output = await runModel(input);
+const open = r.status === 1 /* Reserved */
+  && r.customer === quote.customer && r.providerId === quote.providerId
+  && r.requestHash === quote.requestHash && r.maxAmount === quote.maxAmount
+  && BigInt(now + 60) < r.expiry;
+if (!open) throw new Error("not this customer's open reservation");
+const output = await runModel(input);          // one call per reservation
 const responseHash = keccak256(toHex(output));
 
-// 3. Customer signs a DeliveryAcceptance for that hash.
+// 3. The customer's client re-hashes the text it shows and signs a
+//    DeliveryAcceptance for that hash and an amount <= the reserved cap.
+//    The contract verifies the signature. Full version: server/lifecycle.ts
 await relayer.writeContract({
   address: VAULT, abi: unspentVaultAbi,
   functionName: "acceptAndSettle",
