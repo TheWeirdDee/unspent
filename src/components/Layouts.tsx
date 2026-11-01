@@ -1,3 +1,4 @@
+import { BUILD_COMMIT } from "@/build";
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Menu, X, ExternalLink } from "lucide-react";
@@ -89,7 +90,7 @@ export function MarketingLayout() {
           <div className="flex items-center gap-3 md:hidden"><ThemeToggle /></div>
         </div>
         <p className="mx-auto max-w-6xl px-4 pb-8 text-xs text-faint sm:px-6">
-          Contracts have not been independently audited. Independent project; not endorsed by Circle or Arc. A response hash records your acceptance, not proof of service quality.
+          Contracts have not been independently audited. Independent project; not endorsed by Circle or Arc. A response hash records your acceptance, not proof of service quality. <span className="mono">build {BUILD_COMMIT.slice(0, 7)}</span>
         </p>
       </footer>
     </div>
