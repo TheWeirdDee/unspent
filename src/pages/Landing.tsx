@@ -108,7 +108,7 @@ export default function Landing() {
               The recovery client is a separate static page with the contract address and ABI built in. It talks to an Arc RPC and your wallet directly. No login, no database, no indexer, no relayer, and no call to the UNSPENT API.
             </p>
             <p className="mt-3 leading-relaxed text-muted">
-              We demonstrate this by switching our own sample backend off on purpose. That outage is a labelled, controlled demo, not a claim about any real service.
+              Two different tests back this up. The app has a labelled demo switch that simulates a backend outage. Separately, on Arc Testnet we actually suspended the hosted API at its host and used the recovery client to release two expired reservations and refund 1.00 USDC (<a className="link" href="https://github.com/TheWeirdDee/unspent/blob/main/docs/fresh-wallet-recovery-test.md" target="_blank" rel="noopener noreferrer">record</a>). We have not run an outage test on mainnet: the mainnet payment journey ran with the API online.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <a className="btn btn-primary" href={RECOVERY_URL} target="_blank" rel="noopener noreferrer">Open recovery client <ExternalLink size={15} aria-hidden /></a>
