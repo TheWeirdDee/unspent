@@ -8,7 +8,10 @@ import { useSolvency } from "@/hooks/useVault";
 import { formatUsdc } from "@/lib/money";
 import { Notice, Pill } from "@/components/ui";
 
-const STUDIO_URL = import.meta.env.VITE_STUDIO_URL as string | undefined;
+// Owner-only project URL (requires a Circle sign-in; not a public link). Recorded for provenance, not as a public demo link.
+const STUDIO_PROJECT_URL = (import.meta.env.VITE_STUDIO_URL as string | undefined) || "https://studio.arc.io/app/73cba122-05a1-4d3e-9f91-afb6132479b4";
+// Public share link generated from Arc Studio's share menu. Shown only when configured; never guessed.
+const STUDIO_SHARE_URL = import.meta.env.VITE_STUDIO_SHARE_URL as string | undefined;
 
 function TxRows({ items }: { items: ProofTx[] }) {
   const qs = useQueries({
@@ -64,7 +67,10 @@ export default function Proof() {
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Testnet contract</dt><dd>{VAULT ? <a className="link mono break-all" href={addressUrl(VAULT)} target="_blank" rel="noopener noreferrer">{VAULT}</a> : "Not deployed"}</dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Deployment block</dt><dd className="tnum">{dep.deploymentBlock} · <a className="link" href={dep.deploymentTx ? txUrl(dep.deploymentTx) : undefined} target="_blank" rel="noopener noreferrer">transaction</a></dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Source repository</dt><dd><a className="link" href="https://github.com/TheWeirdDee/unspent" target="_blank" rel="noopener noreferrer">github.com/TheWeirdDee/unspent</a></dd></div>
-          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Arc Studio project</dt><dd>{STUDIO_URL ? <a className="link" href={STUDIO_URL} target="_blank" rel="noopener noreferrer">{STUDIO_URL}</a> : <span className="text-warn">Not recorded yet. Set VITE_STUDIO_URL to the project's share link.</span>}</dd></div>
+          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Arc Studio project</dt><dd className="max-w-md text-right">
+            {STUDIO_SHARE_URL ? <><a className="link break-all" href={STUDIO_SHARE_URL} target="_blank" rel="noopener noreferrer">{STUDIO_SHARE_URL}</a><span className="block text-xs text-faint">Public share link</span></>
+              : <><span className="text-warn">No public share link recorded yet.</span><span className="block text-xs text-faint">Project (opens only for its owner, after Circle sign-in): <a className="link break-all" href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">{STUDIO_PROJECT_URL}</a></span></>}
+          </dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Reported failure this addresses</dt><dd><a className="link" href="https://github.com/Conway-Research/automaton/issues/408" target="_blank" rel="noopener noreferrer">Conway Automaton issue #408</a> (user report, 27 Sep 2026)</dd></div>
         </dl>
       </section>
@@ -85,8 +91,9 @@ export default function Proof() {
       </section>
 
       <section aria-labelledby="api" className="space-y-3">
-        <h2 id="api" className="text-xl font-semibold">Real API journey</h2>
-        {PROOF_API.length ? <div className="card px-5 py-1"><TxRows items={PROOF_API} /></div> : <Notice tone="warn" title="Not yet recorded">A journey through the real sample API needs a language-model credential on the server. Until one is configured and the journey is run, nothing is shown here, and no response is simulated.</Notice>}
+        <h2 id="api" className="text-xl font-semibold">Real API journey (Gemini)</h2>
+        <p className="text-sm text-muted">Deposit, a customer-authorised reservation, an actual Gemini response, the customer's signed acceptance, provider settlement and a refund, driven through the app UI. The settled response hash equals the keccak256 of the response shown on screen. Two earlier runs of the same script also settled 0.10 each before the script was corrected, so the provider payout wallet holds more than this one journey.</p>
+        {PROOF_API.length ? <div className="card px-5 py-1"><TxRows items={PROOF_API} /></div> : <Notice tone="warn" title="Not yet recorded">No real-API journey has been recorded for this network yet. Nothing here is simulated.</Notice>}
       </section>
 
       <section aria-labelledby="main" className="space-y-3">
