@@ -27,10 +27,14 @@ export const deployments = {
     "explorer": "https://explorer.arc.io",
     "usdc": "0x3600000000000000000000000000000000000000",
     "usdcDecimals": 6,
-    "vault": null,
-    "deploymentBlock": null,
-    "deploymentTx": null,
-    "providerId": null
+    "vault": "0xa73723023a25fb400a153ae82f7a87b93d305f49",
+    "deploymentBlock": 29009468,
+    "deploymentTx": "0xdfb7ece69d947060224e8f085fe8c2fa3bd4d2fab8630e5b0085d79e2a659b30",
+    "providerId": 1,
+    "providerRegistrationTx": "0xe9668ea23884169a7372e192471df592ac005f000ba2479985a2338bac999df5",
+    "providerOwner": "0x97f32Ba0b4DD5c274DFD9C2A7e6Aa403a9B7dE8d",
+    "providerPayout": "0x97f32Ba0b4DD5c274DFD9C2A7e6Aa403a9B7dE8d",
+    "providerMetadata": "{\"name\":\"TextLab API\",\"service\":\"textlab.summarise.v1\",\"priceMicroUsdc\":\"100000\"}"
   }
 } as const;
 export type NetworkKey = keyof typeof deployments;
