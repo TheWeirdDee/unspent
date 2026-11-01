@@ -5,10 +5,15 @@ import type { Abi, Hex } from "viem";
 import { arcChain } from "@/lib/chains";
 
 export type TxPhase = "idle" | "awaiting-wallet" | "submitted" | "confirmed" | "reverted" | "rejected" | "error";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export interface TxState {
   phase: TxPhase;
   hash?: Hex;
   message?: string;
+  /** True while the chain could not be read (for example an RPC rate limit) but the transaction was already submitted. */
+  readIssue?: boolean;
+  /** True once reconciliation has run for a long time without finding the receipt. */
+  longWait?: boolean;
 }
 
 export function describeError(e: unknown): { rejected: boolean; message: string } {
@@ -48,18 +53,33 @@ export function useTx() {
         return undefined;
       }
       setState({ phase: "submitted", hash });
-      try {
-        const receipt = await publicClient!.waitForTransactionReceipt({ hash, timeout: 90_000 });
-        if (receipt.status === "success") {
-          setState({ phase: "confirmed", hash });
-          await qc.invalidateQueries();
-          return receipt;
+      // The transaction is already submitted. From here we only ever reconcile by hash against the chain:
+      // a failed read (for example HTTP 429) must never read as success, failure or "not sent", and the
+      // action stays locked (busy) so it cannot be submitted a second time while the first is unresolved.
+      const started = Date.now();
+      let readIssue = false;
+      for (;;) {
+        try {
+          const receipt = await publicClient!.getTransactionReceipt({ hash });
+          if (receipt.status === "success") {
+            setState({ phase: "confirmed", hash });
+            await qc.invalidateQueries();
+            return receipt;
+          }
+          setState({ phase: "reverted", hash, message: "The transaction was included but reverted. No funds moved." });
+          return undefined;
+        } catch (e) {
+          const notFound = (e as { name?: string }).name === "TransactionReceiptNotFoundError";
+          if (!notFound !== readIssue) {
+            readIssue = !notFound;
+            setState((st) => ({ ...st, phase: "submitted", hash, readIssue }));
+          }
         }
-        setState({ phase: "reverted", hash, message: "The transaction was included but reverted. No funds moved." });
-      } catch (e) {
-        setState({ phase: "error", hash, message: `Could not confirm the transaction yet (${describeError(e).message}). Check the explorer before retrying.` });
+        const waited = Date.now() - started;
+        if (waited > 120_000) setState((st) => (st.longWait ? st : { ...st, phase: "submitted", hash, longWait: true }));
+        await sleep(waited < 30_000 ? 2_000 : 8_000);
+        if (waited > 30 * 60_000) return undefined;
       }
-      return undefined;
     },
     [writeContractAsync, publicClient, qc],
   );
