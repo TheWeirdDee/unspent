@@ -40,9 +40,9 @@ export default function UseApi() {
   const enough = available !== undefined && available >= 100_000n;
   const busy = ["quoting", "signing-reserve", "reserving", "running", "signing-accept", "settling"].includes(flow.phase);
   const trimmed = text.trim();
-  const disabledReason = !ready ? "Switch to the correct network first." : !acct.data ? "Reading your balance from the contract…" : !enough ? "You need at least 0.10 available credits. Buy credits first." : !trimmed ? "Enter some text to summarise." : prov.data && !prov.data.active ? "The provider is not accepting new requests." : null;
+  const disabledReason = !ready ? "Switch to the correct network first." : !meta.data ? "Provider details are unavailable right now (the provider API did not answer). Your funds are unaffected; you can still withdraw from the recovery page." : !acct.data ? "Reading your balance from the contract…" : !enough ? "You need at least 0.10 available credits. Buy credits first." : !trimmed ? "Enter some text to summarise." : prov.data && !prov.data.active ? "The provider is not accepting new requests." : null;
   const f = flow;
-  const priceTxt = meta.data?.displayPriceUsdc ?? "0.10";
+  const priceTxt = meta.data?.displayPriceUsdc ?? null; // never assume a price when the provider API cannot be reached
 
   return (
     <div className="space-y-6">
@@ -73,12 +73,12 @@ export default function UseApi() {
             <p className="mt-1 text-right text-xs text-faint tnum">{text.length}/{MAX_INPUT_CHARS}</p>
           </div>
           <dl className="space-y-1 rounded-xl bg-surface2 p-3.5 text-sm">
-            <div className="flex justify-between"><dt className="text-muted">Price per request</dt><dd className="money">{priceTxt} USDC</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Price per request</dt><dd className="money">{priceTxt ? `${priceTxt} USDC` : "Unavailable"}</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Available credits</dt><dd className="money">{available !== undefined ? formatUsdc(available) : "…"} USDC</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Paid to</dt><dd className="mono">{prov.data ? <a className="link" href={addressUrl(prov.data.payoutWallet)} target="_blank" rel="noopener noreferrer">{shortAddr(prov.data.payoutWallet)}</a> : "…"}</dd></div>
           </dl>
           <button className="btn btn-primary w-full" disabled={busy || Boolean(disabledReason) || f.phase !== "idle" && f.phase !== "failed"} onClick={() => start(trimmed)}>
-            {busy && f.phase !== "delivered" ? "Working…" : `Reserve ${priceTxt} and run`}
+            {busy && f.phase !== "delivered" ? "Working…" : `Reserve ${priceTxt ?? "…"} and run`}
           </button>
           {disabledReason && f.phase === "idle" ? <p className="text-xs text-faint">{disabledReason}</p> : null}
           <p className="text-xs text-faint">You sign a limit of 0.10 USDC, nothing more. Funds move to the provider only after you accept the response.</p>
