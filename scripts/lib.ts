@@ -7,7 +7,7 @@ import { unspentVaultAbi } from "../src/contracts/abi";
 export function loadEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   try {
-    for (const line of readFileSync(new URL("../.env", import.meta.url).pathname, "utf8").split("\n")) {
+    for (const line of readFileSync(new URL("../server/.env", import.meta.url).pathname, "utf8").split("\n")) {
       const i = line.indexOf("=");
       if (i > 0 && !line.startsWith("#")) out[line.slice(0, i)] = line.slice(i + 1);
     }
@@ -25,7 +25,7 @@ export const chain = defineChain({
   nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: [...net.rpcUrls] } },
 });
-export const pub = createPublicClient({ chain, transport: http(net.rpcUrls[0]) });
+export const pub = createPublicClient({ chain, transport: http(net.rpcUrls[0], { retryCount: 8, retryDelay: 1000 }) });
 export const vault = net.vault as Hex;
 export const usdc = net.usdc as Hex;
 
