@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.*
+**/.env
+data
+contracts/out
+contracts/cache
+recovery
+docs
+lib
+.git
