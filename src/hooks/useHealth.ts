@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/api";
 
 export interface Health {
   ok: boolean;
@@ -19,7 +20,7 @@ export function useBackendStatus(): BackendStatus & { updatedAt: number } {
     refetchInterval: 8_000,
     retry: 0,
     queryFn: async (): Promise<Health> => {
-      const res = await fetch("/api/v1/health", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      const res = await fetch(apiUrl("/api/v1/health"), { cache: "no-store", signal: AbortSignal.timeout(6000) });
       if (!res.ok && res.status !== 503) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as Health;
     },
