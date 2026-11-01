@@ -1,17 +1,35 @@
-node_modules
-dist
-recovery/dist
+# dependencies and build output
+node_modules/
+dist/
+recovery/dist/
+.vite/
+*.tsbuildinfo
+# environment files and credentials (only *.example templates are tracked)
 .env
 .env.*
 !.env.example
-.circle
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+keystore/
 recovery_file*
-contracts/out
-contracts/cache
-cache
-data/*.json
-data/*.db
+.circle/
+.agents/
+# local runtime data and operational records
+data/
 traces.jsonl
 console.jsonl
 *.log
+# foundry
+contracts/out/
+contracts/cache/
+cache/
+broadcast/
+# OS / editor
 .DS_Store
+.idea/
+.vscode/
