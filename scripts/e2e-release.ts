@@ -1,0 +1,45 @@
+// Releases the abandoned reservation through the INDEPENDENT recovery client after its real onchain expiry, then refunds.
+import { chromium } from "playwright-core";
+import { decodeEventLog, type Hex } from "viem";
+import { writeFileSync } from "node:fs";
+import { installTestWallet } from "./e2e-wallet";
+import { acct, pub, vault, wallet } from "./lib";
+import { unspentVaultAbi } from "../src/contracts/abi";
+import { deployments } from "../src/contracts/deployments";
+
+const RESERVATION = BigInt(process.argv[2] ?? "3");
+const pid = BigInt(deployments.testnet.providerId!);
+const customer = wallet("TESTNET_CUSTOMER_KEY").account.address;
+const res0 = await pub.readContract({ address: vault, abi: unspentVaultAbi, functionName: "getReservation", args: [RESERVATION] });
+const head = await pub.getBlock();
+console.log(`reservation ${RESERVATION}: status=${res0.status} expiry=${res0.expiry} chainTime=${head.timestamp} expired=${head.timestamp >= res0.expiry}`);
+if (res0.status !== 1 || head.timestamp < res0.expiry) throw new Error("not open and expired onchain; refusing to proceed");
+const before = await acct(pid, customer);
+const browser = await chromium.launch({ args: ["--disable-gpu", "--no-sandbox"] });
+const page = await (await browser.newContext({ viewport: { width: 1100, height: 1100 }, colorScheme: "dark" })).newPage();
+await installTestWallet(page);
+await page.goto("http://localhost:5174/recovery-client/", { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /E2E Test Wallet/ }).click();
+await page.getByText(`Reservation #${RESERVATION}`).waitFor({ timeout: 40000 });
+await page.screenshot({ path: "/tmp/shots/release-1-before.png", fullPage: true });
+await page.getByRole("button", { name: "Release expired reserve" }).click();
+await page.getByText(/The reservation returned to your available credits/).waitFor({ timeout: 90000 });
+const relTx = (await page.locator("section[aria-labelledby=rs] a[href*='/tx/']").last().getAttribute("href"))!.split("/tx/")[1] as Hex;
+await page.screenshot({ path: "/tmp/shots/release-2-after.png", fullPage: true });
+const rc = await pub.getTransactionReceipt({ hash: relTx });
+const ev = rc.logs.filter((l) => l.address.toLowerCase() === vault.toLowerCase()).map((l) => decodeEventLog({ abi: unspentVaultAbi, data: l.data, topics: l.topics }))[0];
+const mid = await acct(pid, customer);
+const res1 = await pub.readContract({ address: vault, abi: unspentVaultAbi, functionName: "getReservation", args: [RESERVATION] });
+console.log("release tx", relTx, "status", rc.status, "block", rc.blockNumber, "event", ev.eventName, JSON.stringify(ev.args, (_, v) => (typeof v === "bigint" ? v.toString() : v)));
+console.log("reservation status now", res1.status, "(3 = Released)");
+console.log("available before", before.available.toString(), "-> after release", mid.available.toString(), "| reserved", before.reserved.toString(), "->", mid.reserved.toString());
+// refund the restored funds via the same independent client
+await page.getByRole("button", { name: "Refund to my wallet" }).click();
+await page.getByRole("button", { name: "Confirm refund" }).click();
+await page.getByText(/Your USDC was sent back to your wallet/).waitFor({ timeout: 90000 });
+const refTx = (await page.getByRole("dialog").locator("a[href*='/tx/']").last().getAttribute("href"))!.split("/tx/")[1] as Hex;
+const end = await acct(pid, customer);
+const [sol0, sol1] = await pub.readContract({ address: vault, abi: unspentVaultAbi, functionName: "solvency" });
+console.log("refund tx", refTx, "| final account", JSON.stringify(end, (_, v) => (typeof v === "bigint" ? v.toString() : v)), "| vault held/owed", sol0.toString(), sol1.toString());
+writeFileSync("docs/release-reservation-3.json", JSON.stringify({ reservationId: RESERVATION.toString(), expiry: res0.expiry.toString(), chainTimeAtRelease: head.timestamp.toString(), releaseTx: relTx, releaseBlock: rc.blockNumber.toString(), restoredAvailable: (mid.available - before.available).toString(), refundTx: refTx, finalAccount: end, vaultHeld: sol0.toString(), vaultOwed: sol1.toString() }, (_, v) => (typeof v === "bigint" ? v.toString() : v), 2));
+await browser.close();
