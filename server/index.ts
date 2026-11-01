@@ -4,7 +4,7 @@ import { z } from "zod";
 import { ACCEPT_TYPES, RESERVE_TYPES, canonicalRequestHash, responseHashOf, vaultDomain, SERVICE_ID, MAX_INPUT_CHARS } from "../src/lib/protocol";
 import { chain, config, dep, NETWORK, PROVIDER_ID, publicClient, relayerAccount, rpcSource, VAULT } from "./config";
 import { ApiError, chainNow, readProvider, readReservation, relay, requireVault } from "./chain";
-import { store, type RequestRecord } from "./store";
+import { store, hashToken, tokenMatches, persistence, type RequestRecord } from "./store";
 import { ModelError, modelConfigured, summarise } from "./llm";
 
 // ---- simulated outage (demo only; never touches contract state or recovery routes) ----
@@ -33,6 +33,13 @@ function limited(ip: string, max = 90) {
   }
   return ++h.n > max;
 }
+
+// Cross-origin access is allow-listed. Same-origin (Vite proxy / reverse proxy) needs no CORS.
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean);
+const corsHeaders = (origin: string | null): Record<string, string> =>
+  origin && ALLOWED_ORIGINS.includes(origin)
+    ? { "access-control-allow-origin": origin, vary: "Origin", "access-control-allow-headers": "content-type, authorization", "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-max-age": "600" }
+    : {};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body, (_, v) => (typeof v === "bigint" ? v.toString() : v)), {
@@ -71,7 +78,7 @@ function publicRecord(r: RequestRecord) {
 
 function authorised(r: RequestRecord | undefined, token: unknown): RequestRecord {
   if (!r) throw new ApiError(404, "NOT_FOUND", "Unknown request");
-  if (typeof token !== "string" || token !== r.accessToken) throw new ApiError(403, "FORBIDDEN", "Invalid request access token");
+  if (!tokenMatches(r, token)) throw new ApiError(403, "FORBIDDEN", "Invalid request access token");
   return r;
 }
 
@@ -116,13 +123,14 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
       rpc: { source: rpcSource, reachable: chainOk, head },
       relayerConfigured: Boolean(relayerAccount),
       modelConfigured: modelConfigured(),
+      persistence,
       outage: outageView(),
     });
   }
 
   if (path === "/api/v1/demo/outage" && m === "POST") {
     const b = z.object({ token: z.string(), active: z.boolean(), minutes: z.number().min(1).max(30).default(10), reason: z.string().max(200).default("Controlled demo of recovery without the billing backend") }).parse(body);
-    if (!config.operatorToken || b.token !== config.operatorToken) throw new ApiError(403, "FORBIDDEN", "Invalid operator token");
+    if (!config.operatorToken || hashToken(b.token) !== hashToken(config.operatorToken)) throw new ApiError(403, "FORBIDDEN", "Invalid operator token");
     outage.active = b.active;
     outage.since = Date.now();
     outage.until = Date.now() + b.minutes * 60_000;
@@ -150,9 +158,11 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
     if (!p.active) throw new ApiError(409, "PROVIDER_INACTIVE", "Provider is not accepting new requests");
     const requestId = `req_${randomUUID().replace(/-/g, "")}`;
     const now = await chainNow();
+    store.prune();
+    const accessToken = randomBytes(24).toString("hex");
     const rec: RequestRecord = {
       requestId,
-      accessToken: randomBytes(24).toString("hex"),
+      accessTokenHash: hashToken(accessToken),
       providerId: b.providerId,
       customer: b.customer,
       inputHash: b.inputHash,
@@ -168,7 +178,7 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
     store.put(rec);
     return json({
       requestId,
-      accessToken: rec.accessToken,
+      accessToken, // returned once, to the requester only
       providerId: rec.providerId,
       service: SERVICE_ID,
       maxAmountMicrounits: rec.maxAmount,
@@ -274,7 +284,8 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
   if (am && m === "POST") {
     const b = z.object({ accessToken: z.string(), signature: hex, nonce: decimalStr, deadline: decimalStr }).parse(body);
     const rec = authorised(store.get(am[1]), b.accessToken);
-    if (rec.state === "settled") return json({ ...publicRecord(rec), idempotentReplay: true });
+    // A second acceptance for an already-settled request must FAIL. The contract would also revert (ReservationNotOpen).
+    if (rec.state === "settled") throw new ApiError(409, "ALREADY_SETTLED", "This request was already settled; a replayed acceptance is rejected and no new transaction is sent.", { settleTx: rec.settleTx });
     if (rec.state === "settling") throw new ApiError(409, "IN_PROGRESS", "Settlement is already being submitted");
     if (rec.state !== "delivered" || !rec.reservationId || !rec.responseHash) throw new ApiError(409, "INVALID_STATE", `Request is ${rec.state}`);
     const message = { customer: rec.customer, reservationId: BigInt(rec.reservationId), responseHash: rec.responseHash, amount: BigInt(rec.maxAmount), nonce: BigInt(b.nonce), deadline: BigInt(b.deadline) };
@@ -297,7 +308,7 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
 
   const gm = path.match(/^\/api\/v1\/usage\/(req_[a-f0-9]+)$/);
   if (gm && m === "GET") {
-    const rec = authorised(store.get(gm[1]), url.searchParams.get("accessToken"));
+    const rec = authorised(store.get(gm[1]), req.headers.get("authorization")?.replace(/^Bearer\s+/i, ""));
     const chainState = rec.reservationId ? await readReservation(BigInt(rec.reservationId)).catch(() => null) : null;
     const cached = outputCache.get(rec.requestId);
     return json({ ...publicRecord(rec), onchainStatus: chainState?.statusName ?? null, output: cached?.output ?? null });
@@ -320,14 +331,20 @@ const server = Bun.serve({
   hostname: "0.0.0.0",
   async fetch(req, srv) {
     const url = new URL(req.url);
-    const ip = srv.requestIP(req)?.address ?? "unknown";
+    const ip = (req.headers.get("x-forwarded-for")?.split(",")[0].trim() || srv.requestIP(req)?.address) ?? "unknown";
+    const cors = corsHeaders(req.headers.get("origin"));
+    if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    const withCors = (res: Response) => {
+      for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
+      return res;
+    };
     try {
-      return await route(req, url, ip);
+      return withCors(await route(req, url, ip));
     } catch (e) {
-      if (e instanceof ApiError) return json({ code: e.code, message: e.message, ...e.extra }, e.status);
-      if (e instanceof z.ZodError) return json({ code: "BAD_REQUEST", message: e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, 400);
+      if (e instanceof ApiError) return withCors(json({ code: e.code, message: e.message, ...e.extra }, e.status));
+      if (e instanceof z.ZodError) return withCors(json({ code: "BAD_REQUEST", message: e.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") }, 400));
       console.error(e);
-      return json({ code: "INTERNAL", message: "Unexpected server error" }, 500);
+      return withCors(json({ code: "INTERNAL", message: "Unexpected server error" }, 500));
     }
   },
 });
