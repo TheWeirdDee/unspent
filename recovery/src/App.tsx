@@ -3,6 +3,7 @@ import { formatUnits, isAddress, pad, parseAbiItem, toEventSelector, toHex, type
 import { unspentVaultAbi } from "./contracts/abi";
 import { deployments, type NetworkKey } from "./contracts/deployments";
 import { buildClients, customRpc, fmt, parse, pickNetwork, short, type Clients } from "./chain";
+import { BUILD_COMMIT } from "./build";
 import { useSession, useWallets } from "./wallet";
 
 type Theme = "light" | "dark" | "system";
@@ -11,7 +12,7 @@ interface OpenRes { id: bigint; amount: bigint; expiry: bigint }
 type Tx =
   | { phase: "idle" }
   | { phase: "wallet" }
-  | { phase: "submitted"; hash: Hex }
+  | { phase: "submitted"; hash: Hex; issue?: boolean; long?: boolean }
   | { phase: "ok"; hash: Hex }
   | { phase: "reverted"; hash: Hex }
   | { phase: "error"; msg: string; hash?: Hex };
@@ -151,11 +152,25 @@ export default function App() {
         : await wc.writeContract({ address: c.vault, abi: unspentVaultAbi, functionName: "releaseExpired", args: [id!], account: session.address, chain: c.chain });
     } catch (e) { set({ phase: "error", msg: errText(e) }); return; }
     set({ phase: "submitted", hash });
-    try {
-      const rc = await c.publicClient.waitForTransactionReceipt({ hash, timeout: 90_000 });
-      set(rc.status === "success" ? { phase: "ok", hash } : { phase: "reverted", hash });
-      await load();
-    } catch (e) { set({ phase: "error", msg: `Could not confirm yet (${errText(e)}). Check the explorer before retrying.`, hash }); }
+    // Submitted: from here only reconcile by hash. A failed read (e.g. HTTP 429) never counts as success or
+    // failure, and the action stays locked so the same transaction cannot be sent twice.
+    const started = Date.now();
+    let issue = false;
+    for (;;) {
+      try {
+        const rc = await c.publicClient.getTransactionReceipt({ hash });
+        set(rc.status === "success" ? { phase: "ok", hash } : { phase: "reverted", hash });
+        await load();
+        return;
+      } catch (e) {
+        const notFound = (e as { name?: string }).name === "TransactionReceiptNotFoundError";
+        issue = !notFound;
+      }
+      const waited = Date.now() - started;
+      set({ phase: "submitted", hash, issue, long: waited > 120_000 });
+      await new Promise((r) => setTimeout(r, waited < 30_000 ? 2_000 : 8_000));
+      if (waited > 30 * 60_000) return;
+    }
   }
 
   const txLink = (h: string) => <a className="link" href={`${c.dep.explorer}/tx/${h}`} target="_blank" rel="noopener noreferrer">View on Arc Explorer</a>;
@@ -163,7 +178,7 @@ export default function App() {
     t.phase === "idle" ? null : (
       <p role="status" className={`mt-3 rounded-lg p-3 text-sm ${t.phase === "ok" ? "bg-accentsoft text-accent" : t.phase === "error" || t.phase === "reverted" ? "bg-badsoft text-bad" : "bg-surface2 text-muted"}`}>
         {t.phase === "wallet" ? "Awaiting wallet approval. Nothing has been sent yet."
-          : t.phase === "submitted" ? <>Submitted. Waiting for confirmation. {txLink(t.hash)}</>
+          : t.phase === "submitted" ? <>Submitted. Waiting for confirmation.{t.issue ? " The chain could not be read just now (the RPC may be rate limiting). Your transaction was already submitted and will not be sent again; checking again automatically." : ""}{t.long ? " Taking longer than usual: it may still confirm, so check the explorer before trying again." : ""} {txLink(t.hash)}</>
           : t.phase === "ok" ? <>Confirmed. {okText} {txLink(t.hash)}</>
           : t.phase === "reverted" ? <>Reverted onchain. No funds moved. {txLink(t.hash)}</>
           : <>{t.msg} {t.hash ? txLink(t.hash) : null}</>}
@@ -316,6 +331,7 @@ export default function App() {
           </div>
         </div>
       ) : null}
+      <p className="mx-auto max-w-3xl px-4 pb-8 text-xs text-faint sm:px-6">Recovery client build <span className="mono">{BUILD_COMMIT === "dev" ? "local development build" : BUILD_COMMIT.slice(0, 7)}</span>. No analytics, no backend calls.</p>
     </div>
   );
 }
