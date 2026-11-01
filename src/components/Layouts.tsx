@@ -10,7 +10,9 @@ import { useBackendStatus } from "@/hooks/useHealth";
 import { useWalletReady } from "@/hooks/useVault";
 import { WrongNetwork } from "@/components/ui";
 
-export const RECOVERY_URL = (import.meta.env.VITE_RECOVERY_URL as string | undefined) || "/recovery-client/";
+const RECOVERY_BASE = (import.meta.env.VITE_RECOVERY_URL as string | undefined) || "/recovery-client/";
+/** Opens the recovery client on the same network this app is running on. */
+export const RECOVERY_URL = `${RECOVERY_BASE}${RECOVERY_BASE.includes("?") ? "&" : "?"}network=${NETWORK}`;
 
 function NetworkBadge() {
   return (
