@@ -87,6 +87,9 @@ h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
+/* Component classes live in Tailwind's components layer so utilities (lg:hidden, md:hidden, !px-2.5 ...) override them.
+   Outside a layer they outranked every utility, e.g. .btn kept the nav hamburger visible on desktop. */
+@layer components {
 /* Faint grid texture: used on selected public sections only */
 .grid-texture {
   background-image:
@@ -136,4 +139,5 @@ textarea.input { padding: .8rem .9rem; min-height: 140px; resize: vertical; line
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
 }
