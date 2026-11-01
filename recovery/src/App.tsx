@@ -220,7 +220,7 @@ export default function App() {
           <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
             <div><dt className="text-muted">Network</dt><dd>{c.dep.name} · chain {c.dep.chainId}</dd></div>
             <div><dt className="text-muted">Vault contract</dt><dd className="mono break-all">{c.vault ? <a className="link" href={`${c.dep.explorer}/address/${c.vault}`} target="_blank" rel="noopener noreferrer">{c.vault}</a> : "Not deployed on this network"}</dd></div>
-            <div><dt className="text-muted">RPC in use (first, with fallbacks)</dt><dd className="mono break-all">{c.urls[0]}</dd></div>
+            <div><dt className="text-muted">RPC in use (first, with fallbacks)</dt><dd className="mono break-all">{c.transportUrls[0]}{c.transportUrls[0] !== c.urls[0] ? <span className="block text-xs text-faint">then {c.urls.join(", ")}</span> : null}</dd></div>
             <div><dt className="text-muted">Provider ID</dt><dd><label className="sr-only" htmlFor="pid">Provider ID</label><input id="pid" className="input !min-h-9 !w-24" inputMode="numeric" value={providerText} onChange={(e) => setProviderText(e.target.value)} aria-invalid={providerId === null} /></dd></div>
           </dl>
         </section>
