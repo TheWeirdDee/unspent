@@ -1,9 +1,9 @@
 // Generates a self-contained local page (no network assets, no keys) that shows the exact Arc mainnet deployment and
 // provider-registration transactions and has the owner's own MetaMask sign them. Nothing is broadcast by this script.
-//   forge build && node scripts/mainnet-console.ts <out.html>      (serve it from localhost, e.g. python -m http.server)
+//   forge build && bun scripts/mainnet-console.ts <out.html>      (serve it from localhost, e.g. python -m http.server)
 import { readFileSync, writeFileSync } from "node:fs";
 import { keccak256, stringToHex, toFunctionSelector, sha256 } from "viem";
-import { deployments } from "../src/contracts/deployments.ts";
+import { deployments } from "../src/contracts/deployments";
 
 const out = process.argv[2];
 if (!out) throw new Error("usage: mainnet-console.ts <out.html>");
