@@ -1,0 +1,17 @@
+node_modules
+dist
+recovery/dist
+.env
+.env.*
+!.env.example
+.circle
+recovery_file*
+contracts/out
+contracts/cache
+cache
+data/*.json
+data/*.db
+traces.jsonl
+console.jsonl
+*.log
+.DS_Store

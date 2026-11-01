@@ -1,0 +1,45 @@
+{
+  "name": "unspent",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "tsc --noEmit && vite build",
+    "server": "bun server/index.ts",
+    "recovery:dev": "bun run --cwd recovery dev",
+    "recovery:build": "bun run --cwd recovery build",
+    "contracts:build": "forge build",
+    "contracts:test": "forge test",
+    "lint": "oxlint src server scripts recovery/src",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p recovery/tsconfig.json",
+    "check": "bun run lint && bun run typecheck",
+    "sync:deployments": "bun scripts/sync-deployments.ts"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "@tanstack/react-query": "5.105.0",
+    "gsap": "3.15.0",
+    "lucide-react": "1.66.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.5",
+    "sonner": "2.0.8",
+    "viem": "2.57.13",
+    "wagmi": "2.19.5",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "oxlint": "1.90.0",
+    "playwright-core": "1.64.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}
