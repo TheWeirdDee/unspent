@@ -10,6 +10,8 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 5173,
     allowedHosts: true,
+    // Keep server-only files (runtime data with request metadata, API source, ops scripts) off the dev server's static surface.
+    fs: { deny: ["**/.env*", "**/data/**", "**/server/**", "**/scripts/**", "**/*.pem", "**/.git/**"] },
     proxy: {
       // The preview only exposes this port, so the browser reaches the billing API through here.
       "/api": { target: "http://localhost:3001", changeOrigin: true },
