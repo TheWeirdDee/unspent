@@ -1,15 +1,15 @@
 {
-  "when": "2026-11-01T06:23:04.306Z",
+  "when": "2026-11-01T07:47:11.560Z",
   "txs": {
-    "approveTx": "0xca20fb80758175353850bb4ee177b63d761d9dd21d311f76e596e8ae4e6857e9",
-    "depositTx": "0x6841557340b3930d3c062ee7ba284237b66ced3682db7975d2ec02e473d1d840",
-    "reserveTx": "0x6e9db47d056b6ce4703175007e3e91afcfa6be4e19597260b58bcd2fd4aa122f",
-    "settleTx": "0x8f771e46fee9d1f22b359c6d4f315eab2b2c0d0c6644503994bdef08d5bb0a3a",
-    "refundTx": "0x2857ace090e22f44241e8471c65a700c0bac0013718695df1712eab88845746c"
+    "approveTx": "0x906398565a0d2835399792a0b6a55b10869a3d0da87c024e91b2f7dfba37117c",
+    "depositTx": "0xaf048e39e842740aabdb3923757ce5057480a2b8eb2a90bc8e3b5a13bbd56072",
+    "reserveTx": "0xf1d925ba4beebab701a1f6f5a706a34f1395affc5a017025210526a98535509a",
+    "settleTx": "0x0c4dfed7e22a4482f5bd7e9eac80f0a2f83dcf5246767458464c540042333f6c",
+    "refundTx": "0x35cd458451903a34b1757a7d271139f828bb9f7036f87464719336bf63dfebb9"
   },
-  "reservationId": "7",
-  "model": "",
-  "availableRefunded": "1900000",
+  "reservationId": "12",
+  "model": "configured",
+  "availableRefunded": "4500000",
   "outputChars": 266,
   "checks": {
     "approval alone creates no credits": {
@@ -82,7 +82,7 @@
     },
     "CreditsRefunded amount = all available": {
       "ok": true,
-      "detail": "1900000"
+      "detail": "4500000"
     },
     "available is now 0; reserved only the abandoned reservation": {
       "ok": true,
@@ -90,7 +90,7 @@
     },
     "customer wallet delta exact (deposit, refund, own gas)": {
       "ok": true,
-      "detail": "delta=0.89497325 USDC gas=0.00502675"
+      "detail": "delta=3.49477705 USDC gas=0.00522295"
     },
     "vault balance delta exact": {
       "ok": true,
@@ -102,7 +102,7 @@
     },
     "vault token balance >= liability (solvency)": {
       "ok": true,
-      "detail": "held=0 owed=0"
+      "detail": "held=400000 owed=400000"
     },
     "account invariant": {
       "ok": true,
@@ -115,34 +115,34 @@
   },
   "before": {
     "acct": {
-      "available": "1000000",
-      "reserved": "0",
-      "totalDeposited": "7000000",
-      "totalSettled": "400000",
-      "totalRefunded": "5600000"
+      "available": "3600000",
+      "reserved": "400000",
+      "totalDeposited": "12000000",
+      "totalSettled": "500000",
+      "totalRefunded": "7500000"
     },
-    "custNative": "18561876894720000000",
-    "payoutNative": "400000000000000000",
-    "vaultNative": "1000000000000000000",
-    "custErc20": "18561876",
-    "payoutErc20": "400000",
-    "vaultErc20": "1000000",
-    "liability": "1000000"
+    "custNative": "15489428144720000000",
+    "payoutNative": "500000000000000000",
+    "vaultNative": "4000000000000000000",
+    "custErc20": "15489428",
+    "payoutErc20": "500000",
+    "vaultErc20": "4000000",
+    "liability": "4000000"
   },
   "end": {
     "acct": {
       "available": "0",
-      "reserved": "0",
-      "totalDeposited": "8000000",
-      "totalSettled": "500000",
-      "totalRefunded": "7500000"
+      "reserved": "400000",
+      "totalDeposited": "13000000",
+      "totalSettled": "600000",
+      "totalRefunded": "12000000"
     },
-    "custNative": "19456850144720000000",
-    "payoutNative": "500000000000000000",
-    "vaultNative": "0",
-    "custErc20": "19456850",
-    "payoutErc20": "500000",
-    "vaultErc20": "0",
-    "liability": "0"
+    "custNative": "18984205194720000000",
+    "payoutNative": "600000000000000000",
+    "vaultNative": "400000000000000000",
+    "custErc20": "18984205",
+    "payoutErc20": "600000",
+    "vaultErc20": "400000",
+    "liability": "400000"
   }
 }
