@@ -106,6 +106,7 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
   const body = m === "POST" ? await req.json().catch(() => ({})) : {};
 
   if (path === "/api/v1/health" && m === "GET") {
+    const version = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT ?? "dev";
     let chainOk = false;
     let head: string | null = null;
     try {
@@ -117,6 +118,7 @@ async function route(req: Request, url: URL, ip: string): Promise<Response> {
     return json({
       ok: !outageActive(),
       service: "unspent-sample-api",
+      version,
       network: NETWORK,
       chainId: chain.id,
       contract: VAULT ?? null,
