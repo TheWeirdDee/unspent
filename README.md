@@ -6,7 +6,11 @@ Built with [Arc Studio](https://studio.arc.io)
 
 Source: https://github.com/TheWeirdDee/unspent · Product spec: `UNSPENT_Product_Requirements_Document_v1.md`
 
-**Status: testnet only. The contract is not independently audited. Nothing is deployed to mainnet.**
+**Status.** Deployed on Arc Testnet (chain 5042002) and on Arc mainnet (chain 5042, vault `0xa73723023a25fB400A153AE82F7A87B93d305f49`). One small real-funds journey (0.20 USDC deposited, one real Gemini request settled for 0.10 USDC, 0.10 USDC refunded) was run on mainnet on 1 Nov 2026: see [docs/mainnet-journey.md](docs/mainnet-journey.md). This is one run, not a production claim, and the app is not described as mainnet-ready.
+
+- **The contract is not independently audited.**
+- **MetaMask flags this app's domains with a "deceptive site" warning. The cause is unresolved** ([MetaMask/eth-phishing-detect#308206](https://github.com/MetaMask/eth-phishing-detect/issues/308206)).
+- **Outage tests, kept separate:** on Arc Testnet the hosted API was actually suspended at its host and the independent recovery client released two expired reservations and refunded 1.00 USDC ([docs/fresh-wallet-recovery-test.md](docs/fresh-wallet-recovery-test.md)). **No outage test has been run on mainnet**; the mainnet payment journey ran with the API online.
 
 ## Architecture
 
