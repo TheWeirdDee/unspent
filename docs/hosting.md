@@ -1,0 +1,25 @@
+# Hosting plan (free services only; nothing here is deployed yet)
+
+Status: the stack runs locally and in the Arc Studio sandbox. No external hosting account is connected, so none of the hosted components below exist yet. Each needs an account you create; none requires a paid plan or a card for the tiers named, per the providers' own docs checked on 1 Nov 2026 (Render free web service, Render/Neon free Postgres notes, Neon free plan). Re-check limits before relying on them.
+
+| Component | Service (free tier) | Notes |
+|---|---|---|
+| Web app (Vite build) | Netlify, Vercel or Hugging Face static Space via Arc Studio's Integrations menu; or Render Static Sites | Set `VITE_NETWORK`, `VITE_API_BASE` (public API URL), `VITE_RECOVERY_URL`. Needs an SPA fallback (`/* /index.html 200`). |
+| API + relayer | Render free web service from the repo `Dockerfile` / `render.yaml` | Secrets entered in the Render dashboard: `TESTNET_RELAYER_KEY`, `LLM_API_KEY`, `LLM_MODEL`, `DEMO_OPERATOR_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`. Render free services spin down after 15 minutes without traffic and take about a minute to wake; the filesystem is ephemeral; 750 free instance hours per month. During a cold start the app shows the "backend unreachable" state and keeps reading balances from the chain. |
+| Durable metadata | Neon free Postgres (`DATABASE_URL`) | The API stores one JSON row (`unspent_state`) and reloads it at boot. Verified locally against Postgres 18: a request record survived an API restart and its bearer token still worked (`scripts/test-persistence.ts`). Neon free scales compute to zero after 5 minutes idle, does not pause projects, and has a 1 GB storage cap per project. Do NOT use Render's free Postgres for this: those databases expire 30 days after creation. |
+| Independent recovery client | A static host that is NOT the app's host, e.g. Cloudflare Pages, GitHub Pages or a second Netlify site; optionally IPFS and a copy anyone can build from the repo | `bun run recovery:build`, publish `recovery/dist`. It needs no env vars and no API. Host it on a different provider and domain from the app so one outage cannot take out both. |
+| Model | Google Gemini API, free tier, via `https://generativelanguage.googleapis.com/v1beta/openai` | Free-tier prompt-handling terms are Google's; documented in `/docs#privacy`. No paid fallback is configured; if the free quota is exhausted the API returns `MODEL_UNAVAILABLE` and the reservation is released after expiry. |
+| RPC | Public Arc RPC | Observed: `eth_getLogs` over a ~27,500-block range was rejected ("requested range too large"), and one burst of reads returned HTTP 429. The app and recovery client chunk log scans and fall back across RPCs; the recovery client lets users add their own endpoint. Measure again before depending on throughput. |
+
+## How metadata survives restarts
+
+Local dev: `data/state.json` (git-ignored). Hosted: Postgres via `DATABASE_URL`. Metadata is non-authoritative: if it were lost, balances, reservations and refunds are unaffected (they live in the contract); only in-flight request records (up to about 20 minutes old) and the daily model counters would be lost, and an interrupted reservation would be released after its expiry.
+
+## Manual steps (you)
+
+1. Create a Neon project; copy its connection string into Render as `DATABASE_URL`.
+2. Create a Render web service from this repo (Blueprint `render.yaml`); add the secrets above; set `CORS_ORIGINS` to the app's URL.
+3. Deploy the web app (Integrations menu) with `VITE_API_BASE` set to the Render URL.
+4. Build and publish `recovery/dist` to a second static host; set `VITE_RECOVERY_URL` on the app.
+5. Add the public Studio share link as `VITE_STUDIO_SHARE_URL`.
+6. For mainnet: deploy the contract from your own wallet first (docs/mainnet-plan.md), update `deployments.json`, run `bun run sync:deployments`, rebuild everything, set `NETWORK=mainnet` on the API with a separate low-balance `MAINNET_RELAYER_KEY`.
