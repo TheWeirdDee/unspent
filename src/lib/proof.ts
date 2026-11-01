@@ -17,4 +17,46 @@ export const PROOF_TESTNET: ProofTx[] = [
   { label: "Refund 0.90 USDC (CreditsRefunded)", hash: "0x497da0be6e73594f77cddca0c06c1d7975000232a082130f0f759339fd80fee3", kind: "protocol" },
 ];
 
-export const PROOF_API: ProofTx[] = []; // filled by scripts/journey.ts once a real model provider is configured
+export const PROOF_API: ProofTx[] = [
+  {
+    "label": "Approve 1.00 USDC (credits unchanged)",
+    "hash": "0xca20fb80758175353850bb4ee177b63d761d9dd21d311f76e596e8ae4e6857e9",
+    "kind": "api"
+  },
+  {
+    "label": "Deposit 1.00 USDC (CreditsDeposited)",
+    "hash": "0x6841557340b3930d3c062ee7ba284237b66ced3682db7975d2ec02e473d1d840",
+    "kind": "api"
+  },
+  {
+    "label": "Reserve 0.10 for a real Gemini request (UsageReserved)",
+    "hash": "0x6e9db47d056b6ce4703175007e3e91afcfa6be4e19597260b58bcd2fd4aa122f",
+    "kind": "api"
+  },
+  {
+    "label": "Customer-accepted settlement of 0.10 (UsageSettled, hash of the actual response)",
+    "hash": "0x8f771e46fee9d1f22b359c6d4f315eab2b2c0d0c6644503994bdef08d5bb0a3a",
+    "kind": "api"
+  },
+  {
+    "label": "Refund of all remaining available credits (CreditsRefunded)",
+    "hash": "0x2857ace090e22f44241e8471c65a700c0bac0013718695df1712eab88845746c",
+    "kind": "api"
+  },
+  {
+    "label": "Abandoned reservation #3: reserved",
+    "hash": "0xce7a7c52756daba76df73c7ab558e037f2bf6c0fe57fd95a1a77a8d58be52772",
+    "kind": "api",
+    "note": "The model was not configured at the time, so the 0.10 stayed reserved."
+  },
+  {
+    "label": "Abandoned reservation #3: released after its real onchain expiry, via the recovery client",
+    "hash": "0xff08c95c6d126b653ba3da2d0b0580c531f4de9ce1e5c04964145ffc5cbde5e4",
+    "kind": "api"
+  },
+  {
+    "label": "Refund of the restored 0.10 via the recovery client",
+    "hash": "0xb00d0e64fbe3c3c2b39308848dfd243fa2b791558b992afff9e1c6f1486f0e6b",
+    "kind": "api"
+  }
+];
