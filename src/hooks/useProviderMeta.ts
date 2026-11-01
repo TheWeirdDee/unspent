@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/api";
 
 export interface ProviderMeta {
   providerId: string;
@@ -18,7 +19,7 @@ export function useProviderMeta() {
     retry: 0,
     refetchInterval: 30_000,
     queryFn: async (): Promise<ProviderMeta> => {
-      const res = await fetch("/api/v1/providers", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      const res = await fetch(apiUrl("/api/v1/providers"), { cache: "no-store", signal: AbortSignal.timeout(6000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()).providers[0] as ProviderMeta;
     },
