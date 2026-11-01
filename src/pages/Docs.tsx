@@ -124,7 +124,7 @@ await relayer.writeContract({
           </ul>
 
           <H id="privacy">Privacy</H>
-          <P>Your prompts and responses are never written onchain; only 32-byte hashes are. The sample API receives your text after your reservation confirms, sends it to a language-model provider to produce the summary, and does not store the raw input or output (a short-lived in-memory copy lets you reload the result). Wallet addresses, amounts and hashes are public by nature of the blockchain. The app stores your theme and wallet preference in your browser.</P>
+          <P>Your prompts and responses are never written onchain; only 32-byte hashes are. The sample API receives your text after your reservation confirms, sends it to Google's Gemini API (through its OpenAI-compatible endpoint) to produce the summary, and does not store the raw input or output (a short-lived in-memory copy lets you reload the result). The sample API uses a free-tier Gemini key; check Google's current terms for how free-tier prompts may be used before sending anything sensitive. Wallet addresses, amounts and hashes are public by nature of the blockchain. The app stores your theme and wallet preference in your browser.</P>
 
           <H id="limits">Limitations</H>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-muted">
