@@ -58,7 +58,7 @@ export default function Proof() {
       <header>
         <p className="label">Public proof</p>
         <h1 className="mt-3 text-balance text-3xl font-semibold sm:text-5xl">A payment should never disappear into a broken credit database.</h1>
-        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted">UNSPENT: backed API credits you can spend or reclaim. Everything below is read from {dep.name} when you open this page, and no wallet is needed.</p>
+        <p className="mt-4 max-w-2xl text-lg leading-relaxed text-muted">UNSPENT: backed API credits you can spend or reclaim. Every receipt below is read from the chain it was sent on when you open this page, and no wallet is needed. The live contract figures are for {dep.name}.</p>
         <div className="mt-6 flex flex-wrap gap-3"><Link to="/app" className="btn btn-primary">Recreate with your own wallet</Link><Link to="/recover" className="btn btn-secondary">Independent recovery</Link></div>
       </header>
 
@@ -76,6 +76,19 @@ export default function Proof() {
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">This page's build</dt><dd className="mono">{BUILD_COMMIT === "dev" ? "local development build" : BUILD_COMMIT}</dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Reported failure this addresses</dt><dd><a className="link" href="https://github.com/Conway-Research/automaton/issues/408" target="_blank" rel="noopener noreferrer">Conway Automaton issue #408</a> (user report, 27 Sep 2026)</dd></div>
         </dl>
+      </section>
+
+      <section aria-labelledby="mainnet-evidence" className="space-y-3">
+        <h2 id="mainnet-evidence" className="text-xl font-semibold">Arc mainnet (chain {mainnet.chainId})</h2>
+        <div className="flex flex-wrap items-center gap-3"><Pill tone="warn">Real USDC · unaudited contract</Pill></div>
+        {mainnet.vault ? <p className="money text-lg font-medium">0.20 USDC in · 0.10 settled to the provider · 0.10 refunded</p> : null}
+        {mainnet.vault ? <p className="text-sm">Contract <a className="link mono break-all" href={`${mainnet.explorer}/address/${mainnet.vault}`} target="_blank" rel="noopener noreferrer">{mainnet.vault}</a></p>
+          : <Notice tone="info" title="Not deployed">No mainnet contract exists yet and no mainnet transaction has been made. Deployment moves real funds and will happen only from your wallet, after you approve the exact steps.</Notice>}
+        {mainnet.vault ? <>
+          <p className="text-sm text-muted">One small real-funds demonstration, signed by the owner in their own MetaMask on 1 Nov 2026: 0.20 USDC deposited, one real Gemini request settled for 0.10 USDC to the provider's payout wallet, and the remaining 0.10 USDC refunded to the customer. The provider's owner and payout wallet are the same wallet. This is one run, not a production claim.</p>
+          <div className="card px-5 py-1"><TxRows items={PROOF_MAINNET} net="mainnet" /></div>
+          <p className="text-sm text-muted">MetaMask showed a "deceptive site" warning for this app's domain and for the recovery client's domain before each connection. The owner reviewed each request and chose to proceed. The cause of the classification is unknown; a review request is open at <a className="link" href="https://github.com/MetaMask/eth-phishing-detect/issues/308206" target="_blank" rel="noopener noreferrer">MetaMask/eth-phishing-detect#308206</a>.</p>
+        </> : null}
       </section>
 
       <section aria-labelledby="live" className="space-y-3">
@@ -99,17 +112,6 @@ export default function Proof() {
         {PROOF_API.length ? <div className="card px-5 py-1"><TxRows items={PROOF_API} net="testnet" /></div> : <Notice tone="warn" title="Not yet recorded">No real-API journey has been recorded for this network yet. Nothing here is simulated.</Notice>}
       </section>
 
-      <section aria-labelledby="main" className="space-y-3">
-        <h2 id="main" className="text-xl font-semibold">Arc mainnet (chain {mainnet.chainId})</h2>
-        <div className="flex flex-wrap items-center gap-3"><Pill tone="warn">Real USDC · unaudited contract</Pill></div>
-        {mainnet.vault ? <p className="text-sm">Contract <a className="link mono break-all" href={`${mainnet.explorer}/address/${mainnet.vault}`} target="_blank" rel="noopener noreferrer">{mainnet.vault}</a></p>
-          : <Notice tone="info" title="Not deployed">No mainnet contract exists yet and no mainnet transaction has been made. Deployment moves real funds and will happen only from your wallet, after you approve the exact steps.</Notice>}
-        {mainnet.vault ? <>
-          <p className="text-sm text-muted">One small real-funds demonstration, signed by the owner in their own MetaMask on 1 Nov 2026: 0.20 USDC deposited, one real Gemini request settled for 0.10 USDC to the provider's payout wallet, and the remaining 0.10 USDC refunded to the customer. The provider's owner and payout wallet are the same wallet. This is one run, not a production claim.</p>
-          <div className="card px-5 py-1"><TxRows items={PROOF_MAINNET} net="mainnet" /></div>
-          <p className="text-sm text-muted">MetaMask showed a "deceptive site" warning for this app's domain and for the recovery client's domain before each connection. The owner reviewed each request and chose to proceed. The cause of the classification is unknown; a review request is open at <a className="link" href="https://github.com/MetaMask/eth-phishing-detect/issues/308206" target="_blank" rel="noopener noreferrer">MetaMask/eth-phishing-detect#308206</a>.</p>
-        </> : null}
-      </section>
 
       <section aria-labelledby="lim" className="space-y-3">
         <h2 id="lim" className="text-xl font-semibold">Limitations, stated plainly</h2>
