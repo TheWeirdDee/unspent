@@ -1,6 +1,6 @@
 # UNSPENT
 
-Refundable, USDC-backed prepaid API credits on Arc. A deposit and its credits are one atomic transaction, you pay only for responses you accept, and you can withdraw the unspent balance at any time, even when the provider's app is down.
+Refundable, USDC-backed prepaid API credits on Arc. A deposit and its credits are one atomic transaction, you pay only for responses you accept, and you can withdraw your available balance at any time, even when the provider's app is down (credits reserved for an in-flight request return after it expires).
 
 Built with [Arc Studio](https://studio.arc.io)
 
@@ -23,7 +23,7 @@ Source: https://github.com/TheWeirdDee/unspent · Product spec: `UNSPENT_Product
  └──────────┬────────────┘              └────────────────────────┘            └──────────▲───────────┘
             │ direct RPC reads (balances, history)                                       │
             └────────────────────────────────────────────────────────────────────────────┤
- Independent recovery client (static, own bundle, no backend) ── RPC + wallet ───────────┘
+ Independent recovery client (static, own bundle, no UNSPENT backend) ── RPC + wallet ───────────┘
 ```
 
 Financial truth is always the contract. The API is only an orchestrator and metadata source; it never holds balances.
@@ -104,7 +104,7 @@ Arc Studio also provisions `RPC_PROXY_BASE_URL`, `RPC_PROXY_TOKEN`, `RPC_PROXY_C
 ## Tests and checks
 
 ```bash
-forge test                 # 200 tests: unit, deadline boundaries, replay, reentrancy, fuzz, invariants
+forge test                 # unit, deadline, replay, reentrancy and fuzz tests plus 8 invariant properties; the total Foundry prints depends on its version (see docs/testing.md)
 bun run check              # oxlint + typecheck for app, server and recovery client
 bun scripts/test-auth.ts   # negative authorisation tests against the running API
 bun scripts/verify-claims.ts   # independent RPC-only re-check of every recorded testnet transaction and the deployed bytecode
