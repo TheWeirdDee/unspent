@@ -12,7 +12,7 @@
     "contracts:build": "forge build",
     "contracts:test": "forge test",
     "lint": "oxlint src server scripts recovery/src",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p recovery/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p recovery/tsconfig.json && tsc --noEmit -p recovery/tsconfig.node.json",
     "check": "bun run lint && bun run typecheck",
     "sync:deployments": "bun scripts/sync-deployments.ts",
     "start": "bun server/index.ts",
