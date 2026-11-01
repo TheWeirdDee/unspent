@@ -32,3 +32,15 @@ No operation trusts a client-supplied address.
 - Bearer tokens travel in request bodies/headers over TLS; there is no rotation.
 - A single API instance is assumed (in-memory output cache, serialised relayer nonce queue).
 - Add SIWE (nonce, domain, chain ID, expiry, single-use) before adding any wallet-scoped private data such as saved prompts, invoices or per-user settings.
+
+## Incident: dev-server exposure of the metadata file (found and handled 1 Nov 2026)
+
+What happened: until `server.fs.deny` was added, the Vite dev server served `data/state.json` and server/script source as static files. That file held request records including, at that time, plaintext per-request bearer tokens. `.env` itself was never served (Vite blocked it with 403; re-tested). `data/` was never committed to git and no hosted deployment existed, so exposure was limited to whoever could reach the Studio preview host during that window. Access logs are not kept, so whether anyone fetched the file is **unknown**; I cannot rule it out.
+
+What a leaked token allowed: reading that request's record (customer address, hashes, state, tx hashes) and, within 30 minutes, the in-memory output. It did not allow moving funds (every payment needs the customer's EIP-712 signature), running the model (needs an open onchain reservation and the original input), or touching the operator, relayer or model keys (not in that file).
+
+What was wrong with the first fix: hashing tokens at rest does not invalidate tokens that already leaked. The startup migration even converted the leaked plaintext tokens into valid hashes, so they stayed usable.
+
+What was done: `scripts/revoke-tokens.ts` revokes every issued token (all 7 records at the time; 2 were non-terminal, quoted or failed). Verified: a token issued before the revocation returned 403 after an API restart; a newly issued token returned 200. Run the script with the API stopped (a running API keeps stale state in memory and would keep honouring old tokens until restarted; this was reproduced and is why the order matters). Re-run it against the production database before the first public launch and after any suspected leak.
+
+Secrets rotation: the relayer, customer, provider and payout keys, the model key and the operator token were never in the exposed file or in git history (history scan clean), so rotation is not required by this incident. They were shown only as redacted output.
