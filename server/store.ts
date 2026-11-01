@@ -92,7 +92,7 @@ function persist() {
 
 export const hashToken = (t: string) => createHash("sha256").update(t).digest("hex");
 export function tokenMatches(rec: { accessTokenHash: string }, token: unknown): boolean {
-  if (typeof token !== "string") return false;
+  if (typeof token !== "string" || rec.accessTokenHash === REVOKED) return false;
   const a = Buffer.from(hashToken(token));
   const b = Buffer.from(rec.accessTokenHash);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -100,7 +100,21 @@ export function tokenMatches(rec: { accessTokenHash: string }, token: unknown): 
 
 const QUOTE_TTL_MS = 60 * 60_000; // unreserved quotes are dropped after an hour
 
+/** Invalidates every bearer token ever issued (used after the dev-server exposure). Records are kept; tokens are not. */
+function revokeAll(): { revoked: number; total: number } {
+  const all = Object.values(data.requests);
+  let revoked = 0;
+  for (const r of all) {
+    if (r.accessTokenHash !== REVOKED) { r.accessTokenHash = REVOKED; revoked++; }
+  }
+  persist();
+  return { revoked, total: all.length };
+}
+const REVOKED = "revoked";
+export const flush = () => pending;
+
 export const store = {
+  revokeAll,
   get: (id: string) => data.requests[id],
   all: () => Object.values(data.requests),
   prune() {
