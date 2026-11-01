@@ -71,7 +71,7 @@ export default function Deposit() {
         <p id="dep-help" className={`mt-1.5 text-xs ${invalid ? "text-bad" : "text-faint"}`}>
           {invalid ?? `Wallet balance: ${walletUsdc !== undefined ? formatUsdc(walletUsdc) : "…"} USDC. Gas is paid separately in USDC; keep a little spare.`}
         </p>
-        {walletUsdc === 0n ? <p className="mt-2 text-sm text-muted">No USDC in this wallet. On {dep.name}, use the <strong>Get test USDC</strong> button in the Arc Studio sidebar.</p> : null}
+        {walletUsdc === 0n ? <p className="mt-2 text-sm text-muted">{dep.chainId === 5042 ? "No USDC in this wallet. This is Arc mainnet: you need real USDC on Arc, and USDC held on another network must be bridged to Arc first." : <>No USDC in this wallet. On {dep.name}, use the <strong>Get test USDC</strong> button in the Arc Studio sidebar.</>}</p> : null}
       </section>
 
       <section className="card p-5" aria-labelledby="s3">
