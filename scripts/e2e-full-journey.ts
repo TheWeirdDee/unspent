@@ -8,7 +8,7 @@ import { acct, bal, pub, vault, wallet } from "./lib";
 import { unspentVaultAbi } from "../src/contracts/abi";
 import { deployments } from "../src/contracts/deployments";
 
-const APP = "http://localhost:5173";
+const APP = process.env.APP_URL ?? "http://localhost:5173";
 const EXPLORER = deployments.testnet.explorer;
 const providerId = BigInt(deployments.testnet.providerId!);
 const customer = wallet("TESTNET_CUSTOMER_KEY").account.address;
