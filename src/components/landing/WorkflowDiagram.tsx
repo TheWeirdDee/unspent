@@ -5,7 +5,7 @@ import { Pause, Play } from "lucide-react";
 const STEPS = [
   { id: "deposit", title: "Deposit", body: "You send USDC to the vault. In the same transaction your credits exist, so there is no gap where money has moved but nothing is credited." },
   { id: "use", title: "Use", body: "You sign a small spending limit. The vault reserves it, the API runs, and you accept the response you got. Only then does the provider get paid." },
-  { id: "withdraw", title: "Withdraw", body: "Whatever you have not spent is yours to withdraw at any time, straight to your own wallet, whether or not the provider's app is running." },
+  { id: "withdraw", title: "Withdraw", body: "Available credits can be withdrawn at any time, straight to your own wallet, whether or not the provider's app is running. Credits reserved for a request return to Available once the reservation expires. A withdrawal also needs the token and network to allow the transfer." },
 ] as const;
 
 // Bar scale (0..1) per step for [available, reserved, spent]. Schematic proportions only: no amounts.
