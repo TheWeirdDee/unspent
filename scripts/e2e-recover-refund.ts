@@ -1,0 +1,25 @@
+// Refund all available credits through the independent recovery client (used after releasing an expired reservation).
+import { chromium } from "playwright-core";
+import { installTestWallet } from "./e2e-wallet";
+import { acct, pub, vault, wallet } from "./lib";
+import { unspentVaultAbi } from "../src/contracts/abi";
+import { deployments } from "../src/contracts/deployments";
+import type { Hex } from "viem";
+const pid = BigInt(deployments.testnet.providerId!);
+const customer = wallet("TESTNET_CUSTOMER_KEY").account.address;
+const before = await acct(pid, customer);
+const browser = await chromium.launch({ args: ["--disable-gpu", "--no-sandbox"] });
+const page = await (await browser.newContext({ viewport: { width: 1100, height: 1000 }, colorScheme: "dark" })).newPage();
+await installTestWallet(page);
+await page.goto("http://localhost:5174/recovery-client/", { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /E2E Test Wallet/ }).click();
+await page.waitForSelector("text=/read at block/");
+await page.getByRole("button", { name: "Refund to my wallet" }).click();
+await page.getByRole("button", { name: "Confirm refund" }).click();
+await page.getByText(/Your USDC was sent back to your wallet/).waitFor({ timeout: 90000 });
+const tx = (await page.getByRole("dialog").locator("a[href*='/tx/']").last().getAttribute("href"))!.split("/tx/")[1] as Hex;
+await page.screenshot({ path: "/tmp/shots/recover-refund.png" });
+const after = await acct(pid, customer);
+const [held, owed] = await pub.readContract({ address: vault, abi: unspentVaultAbi, functionName: "solvency" });
+console.log(JSON.stringify({ refundTx: tx, availableBefore: before.available.toString(), availableAfter: after.available.toString(), vaultHeld: held.toString(), vaultOwed: owed.toString() }));
+await browser.close();
