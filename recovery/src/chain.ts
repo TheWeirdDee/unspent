@@ -29,7 +29,7 @@ export function buildClients(net: NetworkKey) {
     blockExplorers: { default: { name: "Arc Explorer", url: dep.explorer } },
   });
   const publicClient = createPublicClient({ chain, transport: fallback(transportUrls.map((u) => http(u, { timeout: 10_000 })), { rank: false }) });
-  return { dep, chain, publicClient, urls, vault: (dep.vault ?? undefined) as Address | undefined };
+  return { dep, chain, publicClient, urls, transportUrls, vault: (dep.vault ?? undefined) as Address | undefined };
 }
 
 export type Clients = ReturnType<typeof buildClients>;
