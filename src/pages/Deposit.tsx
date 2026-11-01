@@ -83,7 +83,7 @@ export default function Deposit() {
           <div className="flex justify-between gap-4"><dt className="text-muted">USDC token (6 decimals)</dt><dd><a className="link mono" href={addressUrl(USDC)} target="_blank" rel="noopener noreferrer">{shortAddr(USDC)}</a></dd></div>
           <div className="flex justify-between gap-4"><dt className="text-muted">Vault contract</dt><dd><a className="link mono" href={addressUrl(vault)} target="_blank" rel="noopener noreferrer">{shortAddr(vault)}</a></dd></div>
         </dl>
-        <p className="mt-3 text-xs text-faint">The vault is unaudited. You can withdraw available credits at any time; credits already paid to the provider are not refundable.</p>
+        <p className="mt-3 text-xs text-faint">The vault is unaudited. You can withdraw available credits at any time; credits reserved for an in-flight request become available again after it expires, and credits already paid to the provider are not refundable.</p>
 
         <div className="mt-5 space-y-3">
           {needsApproval || approve.state.phase !== "idle" ? (
