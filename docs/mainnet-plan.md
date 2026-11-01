@@ -24,7 +24,9 @@ Verified against official docs and the live RPC on 1 Nov 2026: chain ID 5042, RP
 | 7 | `acceptAndSettle` (0.10) | relayer | 0.10 to payout wallet | 207,674 | 0.0052 |
 | 8 | `refund(providerId, 0.90)` | demo customer | 0.90 to customer | 77,143 | 0.0019 |
 
-Total fees about 0.084 USDC; funds at risk in the demo: 1.00 USDC (0.10 goes to your own payout wallet). Estimates move with the fee market; check `eth_gasPrice` before sending.
+Total fees were about 0.084 USDC at the 25 gwei reading above. That is not a fixed cost: the fee market moves, and Arc's base fee has a 20 gwei floor and a 20,000 gwei ceiling. **Recalculate with `bun scripts/mainnet-gas.ts` immediately before you approve anything**; it reads the live gas price and prints the table (and a 2x-price case). Funds at risk in the demo: 1.00 USDC (0.10 goes to your own payout wallet).
+
+Latest reading (block 28,944,263): base fee 20 gwei, gas price 25 gwei.
 
 ## Checks after each step
 
