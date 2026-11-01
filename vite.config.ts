@@ -3,8 +3,18 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 
+
+// Stamp the build with the git commit the host built from (Vercel sets VERCEL_GIT_COMMIT_SHA), so a deployment
+// can be checked against a pushed SHA: <meta name="unspent-build"> in the HTML and BUILD_COMMIT in the bundle.
+const BUILD_COMMIT = process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.RENDER_GIT_COMMIT ?? "dev";
+const stampBuild = () => ({
+  name: "stamp-build",
+  transformIndexHtml: (html: string) => html.replace("</head>", `  <meta name="unspent-build" content="${BUILD_COMMIT}" />\n  </head>`),
+});
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  define: { __BUILD_COMMIT__: JSON.stringify(BUILD_COMMIT) },
+  plugins: [react(), tailwindcss(), stampBuild()],
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   server: {
     host: "0.0.0.0",
