@@ -23,11 +23,19 @@ function NetworkBadge() {
   );
 }
 
-function useDrawer() {
+/** `desktopFrom` is the pixel width at which this layout shows its full navigation instead of the menu button. */
+function useDrawer(desktopFrom: number) {
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const btn = useRef<HTMLButtonElement>(null);
   useEffect(() => { setOpen(false); }, [loc.pathname]);
+  // If the window grows past the point where the drawer is hidden, close it so the page never stays scroll-locked behind it.
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${desktopFrom}px)`);
+    const onChange = (e: MediaQueryListEvent) => { if (e.matches) setOpen(false); };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [desktopFrom]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); btn.current?.focus(); } };
@@ -50,7 +58,7 @@ const MARKETING_LINKS = [
 ];
 
 export function MarketingLayout() {
-  const { open, setOpen, btn } = useDrawer();
+  const { open, setOpen, btn } = useDrawer(768);
   const loc = useLocation();
   useEffect(() => {
     if (loc.hash) document.getElementById(loc.hash.slice(1))?.scrollIntoView();
@@ -74,7 +82,7 @@ export function MarketingLayout() {
           </div>
         </div>
       </header>
-      <MobileDrawer open={open} onClose={() => { setOpen(false); btn.current?.focus(); }}>
+      <MobileDrawer hideFrom="md" open={open} onClose={() => { setOpen(false); btn.current?.focus(); }}>
         {MARKETING_LINKS.map((l) => l.hash ? <a key={l.to} href={l.to} className="rounded-lg px-3 py-3 text-base text-fg hover:bg-surface2" onClick={() => setOpen(false)}>{l.label}</a> : <NavLink key={l.to} to={l.to} className="rounded-lg px-3 py-3 text-base text-fg hover:bg-surface2">{l.label}</NavLink>)}
         <Link to="/app" className="btn btn-primary mt-2">Open app</Link>
       </MobileDrawer>
@@ -99,12 +107,13 @@ export function MarketingLayout() {
   );
 }
 
-function MobileDrawer({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+// The drawer must be hidden at exactly the width where its header button is hidden (md for the marketing header, lg for the app header).
+function MobileDrawer({ open, onClose, hideFrom, children }: { open: boolean; onClose: () => void; hideFrom: "md" | "lg"; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { if (open) ref.current?.querySelector<HTMLElement>("a, button")?.focus(); }, [open]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+    <div className={`fixed inset-0 z-50 ${hideFrom === "lg" ? "lg:hidden" : "md:hidden"}`} role="dialog" aria-modal="true" aria-label="Navigation">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
       <div ref={ref} id="mobile-nav" className="absolute right-0 top-0 flex h-full w-[min(86vw,20rem)] flex-col gap-1 border-l border-line bg-bg p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -152,7 +161,7 @@ function StatusStrip() {
 }
 
 export function AppLayout() {
-  const { open, setOpen, btn } = useDrawer();
+  const { open, setOpen, btn } = useDrawer(1024);
   const { wrongNetwork } = useWalletReady();
   const loc = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [loc.pathname]);
@@ -178,7 +187,7 @@ export function AppLayout() {
         </div>
       </header>
       <StatusStrip />
-      <MobileDrawer open={open} onClose={() => { setOpen(false); btn.current?.focus(); }}>
+      <MobileDrawer hideFrom="lg" open={open} onClose={() => { setOpen(false); btn.current?.focus(); }}>
         {APP_LINKS.map((l) => <NavLink key={l.to} to={l.to} end={l.end} className="rounded-lg px-3 py-3 text-base text-fg hover:bg-surface2">{l.label}</NavLink>)}
       </MobileDrawer>
       <main id="main" className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
