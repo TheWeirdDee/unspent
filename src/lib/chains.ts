@@ -15,7 +15,13 @@ export const arcChain = defineChain({
 
 export const VAULT = (dep.vault ?? undefined) as Address | undefined;
 export const USDC = dep.usdc as Address;
-export const publicClient = createPublicClient({ chain: arcChain, transport: fallback(dep.rpcUrls.map((u) => http(u))) });
+/**
+ * Reads go through this site's own /rpc/<network> rewrite first (vercel.json), then the public endpoints directly.
+ * Privacy filter lists (EasyPrivacy has ||arc.io^$third-party) make browsers block every *.arc.io host for a page on
+ * another domain; a same-origin path is not affected. Wallet transactions still use the wallet's own RPC.
+ */
+export const rpcTransport = () => fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${NETWORK}`), ...dep.rpcUrls.map((u) => http(u))]);
+export const publicClient = createPublicClient({ chain: arcChain, transport: rpcTransport() });
 
 export const txUrl = (hash: string) => `${dep.explorer}/tx/${hash}`;
 export const addressUrl = (addr: string) => `${dep.explorer}/address/${addr}`;
