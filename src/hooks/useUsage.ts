@@ -6,6 +6,7 @@ import { unspentVaultAbi } from "@/contracts/abi";
 import { arcChain, publicClient, VAULT, dep } from "@/lib/chains";
 import { ACCEPT_TYPES, RESERVE_TYPES, canonicalRequestHash, inputHash, vaultDomain } from "@/lib/protocol";
 import { describeError } from "@/hooks/useTx";
+import { apiUrl } from "@/lib/api";
 
 export type Step = "authorise" | "reserve" | "run" | "accept" | "pay";
 export type Phase =
@@ -36,7 +37,7 @@ class ApiFail extends Error {
 async function api<T>(path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(path, { method: body ? "POST" : "GET", headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+    res = await fetch(apiUrl(path), { method: body ? "POST" : "GET", headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
   } catch {
     throw new ApiFail("BACKEND_UNREACHABLE", "The billing backend is unreachable. Nothing was charged.", 0, true);
   }
