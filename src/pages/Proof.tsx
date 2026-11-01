@@ -1,3 +1,4 @@
+import { BUILD_COMMIT } from "@/build";
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
@@ -71,6 +72,7 @@ export default function Proof() {
             {STUDIO_SHARE_URL ? <><a className="link break-all" href={STUDIO_SHARE_URL} target="_blank" rel="noopener noreferrer">{STUDIO_SHARE_URL}</a><span className="block text-xs text-faint">Public share link</span></>
               : <><span className="text-warn">No public share link recorded yet.</span><span className="block text-xs text-faint">Project (opens only for its owner, after Circle sign-in): <a className="link break-all" href={STUDIO_PROJECT_URL} target="_blank" rel="noopener noreferrer">{STUDIO_PROJECT_URL}</a></span></>}
           </dd></div>
+          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">This page's build</dt><dd className="mono">{BUILD_COMMIT === "dev" ? "local development build" : BUILD_COMMIT}</dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Reported failure this addresses</dt><dd><a className="link" href="https://github.com/Conway-Research/automaton/issues/408" target="_blank" rel="noopener noreferrer">Conway Automaton issue #408</a> (user report, 27 Sep 2026)</dd></div>
         </dl>
       </section>
