@@ -1,0 +1,24 @@
+# Render Blueprint for the API + relayer (free web service). Secret values are entered in the Render dashboard, not here.
+services:
+  - type: web
+    name: unspent-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NETWORK
+        value: testnet
+      - key: CORS_ORIGINS
+        sync: false   # e.g. https://your-app.netlify.app
+      - key: DATABASE_URL
+        sync: false   # Neon free-tier Postgres connection string
+      - key: TESTNET_RELAYER_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai
+      - key: LLM_MODEL
+        sync: false
+      - key: DEMO_OPERATOR_TOKEN
+        sync: false
