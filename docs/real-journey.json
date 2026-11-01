@@ -1,0 +1,148 @@
+{
+  "when": "2026-11-01T06:23:04.306Z",
+  "txs": {
+    "approveTx": "0xca20fb80758175353850bb4ee177b63d761d9dd21d311f76e596e8ae4e6857e9",
+    "depositTx": "0x6841557340b3930d3c062ee7ba284237b66ced3682db7975d2ec02e473d1d840",
+    "reserveTx": "0x6e9db47d056b6ce4703175007e3e91afcfa6be4e19597260b58bcd2fd4aa122f",
+    "settleTx": "0x8f771e46fee9d1f22b359c6d4f315eab2b2c0d0c6644503994bdef08d5bb0a3a",
+    "refundTx": "0x2857ace090e22f44241e8471c65a700c0bac0013718695df1712eab88845746c"
+  },
+  "reservationId": "7",
+  "model": "",
+  "availableRefunded": "1900000",
+  "outputChars": 266,
+  "checks": {
+    "approval alone creates no credits": {
+      "ok": true,
+      "detail": ""
+    },
+    "deposit created exactly 1.00 available": {
+      "ok": true,
+      "detail": ""
+    },
+    "CreditsDeposited event amount = 1000000": {
+      "ok": true,
+      "detail": ""
+    },
+    "reservation moved 0.10 Available -> Reserved, liability unchanged": {
+      "ok": true,
+      "detail": ""
+    },
+    "provider not paid before acceptance": {
+      "ok": true,
+      "detail": ""
+    },
+    "actual model output is non-empty bullets": {
+      "ok": true,
+      "detail": "266 chars"
+    },
+    "provider payout wallet received exactly 0.10 (native 18dp and ERC-20 6dp)": {
+      "ok": true,
+      "detail": ""
+    },
+    "vault balance fell by exactly 0.10": {
+      "ok": true,
+      "detail": ""
+    },
+    "account: reserved down 0.10, spent up 0.10": {
+      "ok": true,
+      "detail": ""
+    },
+    "UsageReserved event amount 100000, customer, provider": {
+      "ok": true,
+      "detail": ""
+    },
+    "UsageSettled amount 100000 to provider payout": {
+      "ok": true,
+      "detail": ""
+    },
+    "settled responseHash = keccak256(the displayed Gemini output)": {
+      "ok": true,
+      "detail": ""
+    },
+    "explorer links on screen point at the real tx hashes": {
+      "ok": true,
+      "detail": ""
+    },
+    "captured the acceptance the browser sent": {
+      "ok": true,
+      "detail": ""
+    },
+    "API rejects replayed acceptance": {
+      "ok": true,
+      "detail": "409 ALREADY_SETTLED"
+    },
+    "contract rejects replayed acceptance signature": {
+      "ok": true,
+      "detail": "reverted"
+    },
+    "replay moved no funds": {
+      "ok": true,
+      "detail": ""
+    },
+    "CreditsRefunded amount = all available": {
+      "ok": true,
+      "detail": "1900000"
+    },
+    "available is now 0; reserved only the abandoned reservation": {
+      "ok": true,
+      "detail": ""
+    },
+    "customer wallet delta exact (deposit, refund, own gas)": {
+      "ok": true,
+      "detail": "delta=0.89497325 USDC gas=0.00502675"
+    },
+    "vault balance delta exact": {
+      "ok": true,
+      "detail": ""
+    },
+    "provider total delta exact": {
+      "ok": true,
+      "detail": ""
+    },
+    "vault token balance >= liability (solvency)": {
+      "ok": true,
+      "detail": "held=0 owed=0"
+    },
+    "account invariant": {
+      "ok": true,
+      "detail": ""
+    },
+    "no page errors": {
+      "ok": true,
+      "detail": ""
+    }
+  },
+  "before": {
+    "acct": {
+      "available": "1000000",
+      "reserved": "0",
+      "totalDeposited": "7000000",
+      "totalSettled": "400000",
+      "totalRefunded": "5600000"
+    },
+    "custNative": "18561876894720000000",
+    "payoutNative": "400000000000000000",
+    "vaultNative": "1000000000000000000",
+    "custErc20": "18561876",
+    "payoutErc20": "400000",
+    "vaultErc20": "1000000",
+    "liability": "1000000"
+  },
+  "end": {
+    "acct": {
+      "available": "0",
+      "reserved": "0",
+      "totalDeposited": "8000000",
+      "totalSettled": "500000",
+      "totalRefunded": "7500000"
+    },
+    "custNative": "19456850144720000000",
+    "payoutNative": "500000000000000000",
+    "vaultNative": "0",
+    "custErc20": "19456850",
+    "payoutErc20": "500000",
+    "vaultErc20": "0",
+    "liability": "0"
+  }
+}
