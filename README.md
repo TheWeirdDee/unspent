@@ -103,6 +103,9 @@ Arc Studio also provisions `RPC_PROXY_BASE_URL`, `RPC_PROXY_TOKEN`, `RPC_PROXY_C
 forge test                 # 200 tests: unit, deadline boundaries, replay, reentrancy, fuzz, invariants
 bun run check              # oxlint + typecheck for app, server and recovery client
 bun scripts/test-auth.ts   # negative authorisation tests against the running API
+bun scripts/verify-claims.ts   # independent RPC-only re-check of every recorded testnet transaction and the deployed bytecode
+bun scripts/revoke-tokens.ts   # revoke all bearer tokens (stop the API first)
+bun scripts/mainnet-prepare.ts # live mainnet approval sheet (sends nothing)
 TEST_DATABASE_URL=postgres://... bun scripts/test-persistence.ts   # metadata survives an API restart
 bun run build              # production build of the app
 bun run recovery:build     # production build of the recovery client
