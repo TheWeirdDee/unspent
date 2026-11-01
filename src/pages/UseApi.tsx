@@ -4,7 +4,7 @@ import { Check, Circle, Loader2, AlertTriangle } from "lucide-react";
 import { useAccountState, useProviderOnchain, useWalletReady, PROVIDER_ID } from "@/hooks/useVault";
 import { useUsage, type Flow, type Step } from "@/hooks/useUsage";
 import { useProviderMeta } from "@/hooks/useProviderMeta";
-import { MAX_INPUT_CHARS } from "@/lib/protocol";
+import { MAX_INPUT_CHARS, responseHashOf } from "@/lib/protocol";
 import { formatUsdc } from "@/lib/money";
 import { addressUrl, dep, shortAddr, shortHash, VAULT } from "@/lib/chains";
 import { ExplorerLink, Notice } from "@/components/ui";
@@ -19,7 +19,7 @@ const STEPS: { id: Step; label: string }[] = [
 function stepStatus(f: Flow, id: Step): "todo" | "active" | "done" | "failed" {
   const order = STEPS.findIndex((s) => s.id === id);
   if (f.phase === "failed" && f.failedAt === id) return "failed";
-  const cur = { idle: -1, quoting: 0, "signing-reserve": 0, reserving: 1, running: 2, delivered: 3, "signing-accept": 3, settling: 4, paid: 5, failed: STEPS.findIndex((s) => s.id === f.failedAt) }[f.phase];
+  const cur = { idle: -1, quoting: 0, "signing-reserve": 0, reserving: 1, running: 2, reserved: 2, delivered: 3, "signing-accept": 3, settling: 4, paid: 5, failed: STEPS.findIndex((s) => s.id === f.failedAt) }[f.phase];
   if (order < cur) return "done";
   if (order === cur) return f.phase === "delivered" ? "active" : "active";
   return "todo";
@@ -30,7 +30,7 @@ export default function UseApi() {
   const acct = useAccountState(address);
   const meta = useProviderMeta();
   const prov = useProviderOnchain();
-  const { flow, start, accept, reset } = useUsage(PROVIDER_ID);
+  const { flow, start, accept, reset, run } = useUsage(PROVIDER_ID);
   const [text, setText] = useState("");
 
   if (!VAULT || PROVIDER_ID === undefined) return <Notice tone="warn" title={`Not deployed on ${dep.name}`}>No vault or provider is configured for this network.</Notice>;
@@ -42,6 +42,9 @@ export default function UseApi() {
   const trimmed = text.trim();
   const disabledReason = !ready ? "Switch to the correct network first." : !meta.data ? "Provider details are unavailable right now (the provider API did not answer). Your funds are unaffected; you can still withdraw from the recovery page." : !acct.data ? "Reading your balance from the contract…" : !enough ? "You need at least 0.10 available credits. Buy credits first." : !trimmed ? "Enter some text to summarise." : prov.data && !prov.data.active ? "The provider is not accepting new requests." : null;
   const f = flow;
+  // Computed in this browser from the exact text on screen: the signature must bind the text the customer read, not a hash the API supplied.
+  const hashOk = (() => { try { return Boolean(f.result) && responseHashOf(f.result!.output).toLowerCase() === f.result!.responseHash.toLowerCase(); } catch { return false; } })();
+  const amountTxt = (() => { try { return f.result ? formatUsdc(BigInt(f.result.usageAmountMicrounits)) : "—"; } catch { return "an unreadable amount"; } })();
   const priceTxt = meta.data?.displayPriceUsdc ?? null; // never assume a price when the provider API cannot be reached
 
   return (
@@ -50,6 +53,8 @@ export default function UseApi() {
         <h1 className="text-3xl font-semibold">Use the API</h1>
         <p className="mt-1 text-sm text-muted">TextLab / Summarise. A real language model turns your text into three bullets. You pay only after you accept the result.</p>
       </header>
+
+      {f.resumed ? <Notice tone="info" title="Resumed your request">This request was restored after a refresh or navigation, and its state was re-read from the API and the contract. Your text is not stored: {f.phase === "reserved" ? "paste the same text below to run it, or let the reservation expire and release it." : "nothing needs to be re-entered for the next step."}</Notice> : null}
 
       <ol className="grid grid-cols-5 gap-1 text-xs" aria-label="Request progress">
         {STEPS.map((s, i) => {
@@ -77,9 +82,13 @@ export default function UseApi() {
             <div className="flex justify-between"><dt className="text-muted">Available credits</dt><dd className="money">{available !== undefined ? formatUsdc(available) : "…"} USDC</dd></div>
             <div className="flex justify-between"><dt className="text-muted">Paid to</dt><dd className="mono">{prov.data ? <a className="link" href={addressUrl(prov.data.payoutWallet)} target="_blank" rel="noopener noreferrer">{shortAddr(prov.data.payoutWallet)}</a> : "…"}</dd></div>
           </dl>
-          <button className="btn btn-primary w-full" disabled={busy || Boolean(disabledReason) || f.phase !== "idle" && f.phase !== "failed"} onClick={() => start(trimmed)}>
-            {busy && f.phase !== "delivered" ? "Working…" : `Reserve ${priceTxt ?? "…"} and run`}
-          </button>
+          {f.phase === "reserved" ? (
+            <button className="btn btn-primary w-full" disabled={!trimmed} onClick={() => run(trimmed)}>Run the reserved request</button>
+          ) : (
+            <button className="btn btn-primary w-full" disabled={busy || Boolean(disabledReason) || f.phase !== "idle" && f.phase !== "failed"} onClick={() => start(trimmed)}>
+              {busy && f.phase !== "delivered" ? "Working…" : `Reserve ${priceTxt ?? "…"} and run`}
+            </button>
+          )}
           {disabledReason && f.phase === "idle" ? <p className="text-xs text-faint">{disabledReason}</p> : null}
           <p className="text-xs text-faint">You sign a limit of 0.10 USDC, nothing more. Funds move to the provider only after you accept the response.</p>
         </section>
@@ -95,17 +104,20 @@ export default function UseApi() {
           <Panel n={3} title="Service output" active={f.phase === "running"} done={Boolean(f.result)}>
             {f.result ? (
               <div className="space-y-2">
-                <pre className="whitespace-pre-wrap rounded-lg bg-bg p-3 font-sans text-sm leading-relaxed text-fg">{f.result.output}</pre>
+                <pre className="whitespace-pre-wrap rounded-lg bg-bg p-3 font-sans text-sm leading-relaxed text-fg">{f.result.output || "The response text is no longer retained."}</pre>
                 <p className="text-xs text-faint tnum">{f.result.serviceModel} · {f.result.latencyMs} ms · response hash <span className="mono">{shortHash(f.result.responseHash)}</span></p>
               </div>
-            ) : f.phase === "running" ? "Calling the model…" : "Waiting for a confirmed reservation."}
+            ) : f.phase === "running" ? "Calling the model…" : f.phase === "reserved" ? "The reservation is confirmed. Paste the same text and run it; the service has not run yet." : "Waiting for a confirmed reservation."}
           </Panel>
           <Panel n={4} title="Accept result and pay" active={f.phase === "delivered" || f.phase === "signing-accept" || f.phase === "settling"} done={f.phase === "paid"}>
-            {f.phase === "paid" && f.settleTx ? <>Paid {formatUsdc(BigInt(f.result!.usageAmountMicrounits))} USDC to TextLab. <ExplorerLink hash={f.settleTx} /></>
+            {f.phase === "paid" && f.settleTx ? <>Paid {amountTxt} USDC to TextLab. <ExplorerLink hash={f.settleTx} /></>
               : f.result ? (
                 <div className="space-y-2">
-                  <p>Pay {formatUsdc(BigInt(f.result.usageAmountMicrounits))} USDC to <span className="mono">{prov.data ? shortAddr(prov.data.payoutWallet) : "the provider"}</span>. Your signature authorises exactly this response hash and amount.</p>
-                  <button className="btn btn-primary" disabled={!ready || f.phase === "signing-accept" || f.phase === "settling"} onClick={accept}>
+                  <p>Pay {amountTxt} USDC to <span className="mono">{prov.data ? shortAddr(prov.data.payoutWallet) : "the provider"}</span>. Your signature authorises exactly this response hash and amount.</p>
+                  {hashOk
+                    ? <p className="text-xs text-faint">Checked in your browser: this text hashes to the response hash you are about to sign.</p>
+                    : <p role="alert" className="text-xs text-bad">This text does not match its response hash. Do not accept it.</p>}
+                  <button className="btn btn-primary" disabled={!ready || !hashOk || f.phase === "signing-accept" || f.phase === "settling"} onClick={accept}>
                     {f.phase === "signing-accept" ? "Awaiting signature…" : f.phase === "settling" ? "Settling onchain…" : `Accept & release ${priceTxt} USDC to TextLab`}
                   </button>
                 </div>
