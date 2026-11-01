@@ -2,14 +2,14 @@ import { ExternalLink, ShieldCheck, ServerOff, Wallet } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { RECOVERY_URL } from "@/components/Layouts";
 import { useBackendStatus } from "@/hooks/useHealth";
-import { addressUrl, dep, VAULT } from "@/lib/chains";
+import { addressUrl, VAULT } from "@/lib/chains";
 import { Notice, Pill } from "@/components/ui";
 
 export default function Recover() {
   const loc = useLocation();
   const inApp = loc.pathname.startsWith("/app");
   const s = useBackendStatus();
-  const url = `${RECOVERY_URL}${RECOVERY_URL.includes("?") ? "&" : "?"}network=${dep.chainId === 5042 ? "mainnet" : "testnet"}`;
+  const url = RECOVERY_URL;
   return (
     <div className={inApp ? "space-y-8" : "mx-auto max-w-4xl space-y-10 px-4 py-12 sm:px-6 sm:py-16"}>
       <header className="max-w-2xl">
