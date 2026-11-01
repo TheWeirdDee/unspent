@@ -4,8 +4,9 @@ import { installTestWallet } from "./e2e-wallet";
 import { acct, env, wallet } from "./lib";
 import { deployments } from "../src/contracts/deployments";
 
-const APP = "http://localhost:5173";
-const RECOVERY = "http://localhost:5174/recovery-client/";
+const APP = process.env.APP_URL ?? "http://localhost:5173";
+const API = process.env.API_URL ?? APP; // hosted: the Render API origin
+const RECOVERY = process.env.RECOVERY_URL ?? "http://localhost:5174/recovery-client/";
 const providerId = BigInt(deployments.testnet.providerId!);
 const customer = wallet("TESTNET_CUSTOMER_KEY").account.address;
 const token = env.DEMO_OPERATOR_TOKEN;
@@ -50,8 +51,8 @@ await page.waitForSelector("text=/Read from the contract at/");
 await page.screenshot({ path: `${shots}-4-overview-funded.png` });
 
 step("4. start SIMULATED backend outage, prove the primary API is down");
-const on = await fetch(`${APP}/api/v1/demo/outage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active: true, minutes: 10 }) }).then((r) => r.status);
-const quote = await fetch(`${APP}/api/v1/providers`).then(async (r) => ({ status: r.status, body: (await r.json()).code }));
+const on = await fetch(`${API}/api/v1/demo/outage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active: true, minutes: 10 }) }).then((r) => r.status);
+const quote = await fetch(`${API}/api/v1/providers`).then(async (r) => ({ status: r.status, body: (await r.json()).code }));
 console.log("outage on:", on, "| GET /providers during outage ->", quote);
 await page.goto(`${APP}/app`, { waitUntil: "networkidle" });
 await page.waitForSelector("text=/SIMULATED APPLICATION BACKEND OUTAGE/");
@@ -79,6 +80,6 @@ const end = await acct(providerId, customer);
 console.log("onchain after recovery refund:", end);
 console.log("recovery client calls to /api/v1:", apiCalls.length);
 
-await fetch(`${APP}/api/v1/demo/outage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active: false }) });
+await fetch(`${API}/api/v1/demo/outage`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token, active: false }) });
 console.log("\npage errors:", errors);
 await browser.close();
