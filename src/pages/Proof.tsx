@@ -2,9 +2,9 @@ import { BUILD_COMMIT } from "@/build";
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
-import { PROOF_API, PROOF_TESTNET, type ProofTx } from "@/lib/proof";
-import { addressUrl, dep, publicClient, txUrl, VAULT } from "@/lib/chains";
-import { deployments } from "@/contracts/deployments";
+import { PROOF_API, PROOF_MAINNET, PROOF_TESTNET, type ProofTx } from "@/lib/proof";
+import { clientFor, dep, txUrl } from "@/lib/chains";
+import { deployments, type NetworkKey } from "@/contracts/deployments";
 import { useSolvency } from "@/hooks/useVault";
 import { formatUsdc } from "@/lib/money";
 import { Notice, Pill } from "@/components/ui";
@@ -14,14 +14,14 @@ const STUDIO_PROJECT_URL = (import.meta.env.VITE_STUDIO_URL as string | undefine
 // Public share link generated from Arc Studio's share menu. Shown only when configured; never guessed.
 const STUDIO_SHARE_URL = import.meta.env.VITE_STUDIO_SHARE_URL as string | undefined;
 
-function TxRows({ items }: { items: ProofTx[] }) {
+function TxRows({ items, net }: { items: ProofTx[]; net: NetworkKey }) {
   const qs = useQueries({
     queries: items.map((t) => ({
-      queryKey: ["proof-receipt", t.hash],
+      queryKey: ["proof-receipt", net, t.hash],
       staleTime: 60_000,
       retry: 1,
       queryFn: async () => {
-        const r = await publicClient.getTransactionReceipt({ hash: t.hash });
+        const r = await clientFor(net).getTransactionReceipt({ hash: t.hash });
         return { status: r.status, block: r.blockNumber, gasUsed: r.gasUsed };
       },
     })),
@@ -42,7 +42,7 @@ function TxRows({ items }: { items: ProofTx[] }) {
                 {q.isPending ? "Reading receipt from chain…" : q.isError ? "Could not read this receipt right now (RPC). Not verified." : `${q.data!.status === "success" ? "Confirmed" : "Reverted"} in block ${q.data!.block}`}
               </p>
             </div>
-            <a className="link mono inline-flex items-center gap-1 text-xs" href={txUrl(t.hash)} target="_blank" rel="noopener noreferrer">{t.hash.slice(0, 12)}…{t.hash.slice(-6)} <ExternalLink size={12} aria-hidden /></a>
+            <a className="link mono inline-flex items-center gap-1 text-xs" href={`${deployments[net].explorer}/tx/${t.hash}`} target="_blank" rel="noopener noreferrer">{t.hash.slice(0, 12)}…{t.hash.slice(-6)} <ExternalLink size={12} aria-hidden /></a>
           </li>
         );
       })}
@@ -65,7 +65,8 @@ export default function Proof() {
       <section aria-labelledby="links" className="space-y-3">
         <h2 id="links" className="text-xl font-semibold">Where to inspect it</h2>
         <dl className="card divide-y divide-line text-sm">
-          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Testnet contract</dt><dd>{VAULT ? <a className="link mono break-all" href={addressUrl(VAULT)} target="_blank" rel="noopener noreferrer">{VAULT}</a> : "Not deployed"}</dd></div>
+          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Testnet contract</dt><dd>{deployments.testnet.vault ? <a className="link mono break-all" href={`${deployments.testnet.explorer}/address/${deployments.testnet.vault}`} target="_blank" rel="noopener noreferrer">{deployments.testnet.vault}</a> : "Not deployed"}</dd></div>
+          <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Mainnet contract (unaudited)</dt><dd>{deployments.mainnet.vault ? <a className="link mono break-all" href={`${deployments.mainnet.explorer}/address/${deployments.mainnet.vault}`} target="_blank" rel="noopener noreferrer">{deployments.mainnet.vault}</a> : "Not deployed"}</dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Deployment block</dt><dd className="tnum">{dep.deploymentBlock} · <a className="link" href={dep.deploymentTx ? txUrl(dep.deploymentTx) : undefined} target="_blank" rel="noopener noreferrer">transaction</a></dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Source repository</dt><dd><a className="link" href="https://github.com/TheWeirdDee/unspent" target="_blank" rel="noopener noreferrer">github.com/TheWeirdDee/unspent</a></dd></div>
           <div className="flex flex-wrap justify-between gap-2 p-4"><dt className="text-muted">Arc Studio project</dt><dd className="max-w-md text-right">
@@ -78,7 +79,7 @@ export default function Proof() {
       </section>
 
       <section aria-labelledby="live" className="space-y-3">
-        <h2 id="live" className="text-xl font-semibold">Contract state right now</h2>
+        <h2 id="live" className="text-xl font-semibold">Contract state right now ({dep.name})</h2>
         <div className="card grid gap-px overflow-hidden bg-line sm:grid-cols-2">
           <div className="bg-surface p-5"><p className="text-xs text-muted">USDC held by the vault</p><p className="money mt-1 font-display text-3xl font-semibold">{sol.data ? formatUsdc(sol.data.tokenBalance) : "—"}</p></div>
           <div className="bg-surface p-5"><p className="text-xs text-muted">Owed to customers (available + reserved)</p><p className="money mt-1 font-display text-3xl font-semibold">{sol.data ? formatUsdc(sol.data.liability) : "—"}</p></div>
@@ -87,27 +88,34 @@ export default function Proof() {
       </section>
 
       <section aria-labelledby="tx" className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3"><h2 id="tx" className="text-xl font-semibold">{dep.name} transactions</h2><Pill tone="warn">Testnet, not real funds</Pill></div>
-        <div className="card px-5 py-1"><TxRows items={PROOF_TESTNET} /></div>
+        <div className="flex flex-wrap items-center gap-3"><h2 id="tx" className="text-xl font-semibold">Arc Testnet transactions</h2><Pill tone="warn">Testnet, not real funds</Pill></div>
+        <div className="card px-5 py-1"><TxRows items={PROOF_TESTNET} net="testnet" /></div>
         <p className="text-sm text-muted">The protocol journey proves contract accounting: approval creates nothing, deposit creates credits atomically, settlement pays the bound wallet, an expired reservation is released, and the remainder is refunded. Its response hash is a fixed test string, so it does not demonstrate the API.</p>
       </section>
 
       <section aria-labelledby="api" className="space-y-3">
-        <h2 id="api" className="text-xl font-semibold">Real API journey (Gemini)</h2>
+        <h2 id="api" className="text-xl font-semibold">Real API journey on testnet (Gemini)</h2>
         <p className="text-sm text-muted">Deposit, a customer-authorised reservation, an actual Gemini response, the customer's signed acceptance, provider settlement and a refund, driven through the app UI. The settled response hash equals the keccak256 of the response shown on screen. Two earlier runs of the same script also settled 0.10 each before the script was corrected, so the provider payout wallet holds more than this one journey.</p>
-        {PROOF_API.length ? <div className="card px-5 py-1"><TxRows items={PROOF_API} /></div> : <Notice tone="warn" title="Not yet recorded">No real-API journey has been recorded for this network yet. Nothing here is simulated.</Notice>}
+        {PROOF_API.length ? <div className="card px-5 py-1"><TxRows items={PROOF_API} net="testnet" /></div> : <Notice tone="warn" title="Not yet recorded">No real-API journey has been recorded for this network yet. Nothing here is simulated.</Notice>}
       </section>
 
       <section aria-labelledby="main" className="space-y-3">
         <h2 id="main" className="text-xl font-semibold">Arc mainnet (chain {mainnet.chainId})</h2>
-        {mainnet.vault ? <p className="text-sm">Contract <a className="link mono" href={`${mainnet.explorer}/address/${mainnet.vault}`} target="_blank" rel="noopener noreferrer">{mainnet.vault}</a></p>
+        <div className="flex flex-wrap items-center gap-3"><Pill tone="warn">Real USDC · unaudited contract</Pill></div>
+        {mainnet.vault ? <p className="text-sm">Contract <a className="link mono break-all" href={`${mainnet.explorer}/address/${mainnet.vault}`} target="_blank" rel="noopener noreferrer">{mainnet.vault}</a></p>
           : <Notice tone="info" title="Not deployed">No mainnet contract exists yet and no mainnet transaction has been made. Deployment moves real funds and will happen only from your wallet, after you approve the exact steps.</Notice>}
+        {mainnet.vault ? <>
+          <p className="text-sm text-muted">One small real-funds demonstration, signed by the owner in their own MetaMask on 1 Nov 2026: 0.20 USDC deposited, one real Gemini request settled for 0.10 USDC to the provider's payout wallet, and the remaining 0.10 USDC refunded to the customer. The provider's owner and payout wallet are the same wallet. This is one run, not a production claim.</p>
+          <div className="card px-5 py-1"><TxRows items={PROOF_MAINNET} net="mainnet" /></div>
+          <p className="text-sm text-muted">MetaMask showed a "deceptive site" warning for this app's domain and for the recovery client's domain before each connection. The owner reviewed each request and chose to proceed. The cause of the classification is unknown; a review request is open at <a className="link" href="https://github.com/MetaMask/eth-phishing-detect/issues/308206" target="_blank" rel="noopener noreferrer">MetaMask/eth-phishing-detect#308206</a>.</p>
+        </> : null}
       </section>
 
       <section aria-labelledby="lim" className="space-y-3">
         <h2 id="lim" className="text-xl font-semibold">Limitations, stated plainly</h2>
         <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
-          <li>The contract is unaudited. It has 200 passing automated tests, including fuzz and invariant tests, and an internal review.</li>
+          <li>The contract is unaudited. It has 193 passing Foundry tests (including 8 invariant properties and fuzzing) and an internal review. Mainnet use is at your own risk.</li>
+          <li>MetaMask flags this app's domains with a "deceptive site" warning. The classification is unresolved and is not hidden or bypassed.</li>
           <li>A response hash proves what you accepted, not that the service was correct.</li>
           <li>A customer can withhold acceptance, which exposes providers to nonpayment risk.</li>
           <li>Refunds cannot happen if the token issuer or network blocks transfers to your address.</li>
