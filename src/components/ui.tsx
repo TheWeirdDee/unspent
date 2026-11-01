@@ -41,8 +41,10 @@ export function TxStatus({ state, confirmedText, onReset }: { state: TxState; co
     return <Notice tone="info" title="Awaiting wallet approval">Confirm the request in your wallet. Nothing has been sent yet.</Notice>;
   if (state.phase === "submitted")
     return (
-      <Notice tone="info" title="Transaction submitted">
+      <Notice tone={state.readIssue || state.longWait ? "warn" : "info"} title={state.longWait ? "Still unconfirmed" : "Transaction submitted"} action={state.longWait && onReset ? <button className="btn btn-ghost btn-sm" onClick={onReset}>Hide</button> : undefined}>
         <span className="inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" aria-hidden /> Waiting for confirmation. Credits and balances do not change until it confirms.</span>
+        {state.readIssue ? <div>The chain could not be read just now (the RPC may be rate limiting). Your transaction was already submitted and will not be sent again. Checking again automatically.</div> : null}
+        {state.longWait ? <div>This is taking longer than usual. It may still confirm: open the explorer link before trying again.</div> : null}
         <div>{state.hash ? <ExplorerLink hash={state.hash} /> : null}</div>
       </Notice>
     );
