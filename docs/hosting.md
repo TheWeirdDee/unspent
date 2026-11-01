@@ -11,6 +11,12 @@ Status (1 Nov 2026): the components below are deployed. The table underneath is 
 
 Each hosted component was set up with a free plan. Re-check provider limits before relying on them.
 
+Limits to know about:
+- **Single API instance only.** The one-model-call-per-reservation lock is process-local, and state is one JSON snapshot row (writes for irreversible steps are awaited, but there are no row-level transactions). Do not run two instances against one database.
+- **Output retention:** model output is kept in memory for 30 minutes (enforced on every read) and is cleared on restart; the contract, not this service, is the record of money.
+- **The two RPC pass-throughs differ.** The Cloudflare relay for the recovery client allows only read-only JSON-RPC methods, at most 20 calls and 100 KB per request, and fails over across Arc's public endpoints. The Vercel `/rpc/<network>` rewrite for the app is a plain forward and enforces no method list. Neither has a per-client rate limit; add one at the host if abuse appears.
+- **CI** (`.github/workflows/ci.yml`) runs the lint, typecheck, unit tests, builds and contract tests on every push.
+
 | Component | Service (free tier) | Notes |
 |---|---|---|
 | Web app (Vite build) | Netlify, Vercel or Hugging Face static Space via Arc Studio's Integrations menu; or Render Static Sites | Set `VITE_NETWORK`, `VITE_API_BASE` (public API URL), `VITE_RECOVERY_URL`. Needs an SPA fallback (`/* /index.html 200`). |
