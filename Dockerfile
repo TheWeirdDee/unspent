@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY server ./server
-COPY src/lib/protocol.ts src/lib/money.ts ./src/lib/
+COPY src/lib/protocol.ts src/lib/money.ts src/lib/retry.ts ./src/lib/
 COPY src/contracts ./src/contracts
 ENV NODE_ENV=production PORT=3001
 EXPOSE 3001
