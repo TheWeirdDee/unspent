@@ -112,7 +112,8 @@ contract UnspentVaultHandler is Test {
             maxAmount: bound(amount, 1, avail),
             nonce: nonceCounter,
             authDeadline: block.timestamp + duration / 2,
-            expiry: block.timestamp + duration
+            expiry: block.timestamp + duration,
+            providerSettleAfter: 0
         });
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(customerPks[ci], vault.hashReserveAuthorisation(a));
         uint256 id = vault.reserveWithSignature(a, abi.encodePacked(r, s, v));
@@ -224,7 +225,8 @@ contract UnspentVaultHandler is Test {
                 maxAmount: amount,
                 nonce: nonceCounter,
                 authDeadline: block.timestamp + 1,
-                expiry: block.timestamp + 2
+                expiry: block.timestamp + 2,
+                providerSettleAfter: 0
             });
             (uint8 v, bytes32 rr, bytes32 ss) = vm.sign(OUTSIDER_PK, vault.hashReserveAuthorisation(a));
             try vault.reserveWithSignature(a, abi.encodePacked(rr, ss, v)) {} catch {}

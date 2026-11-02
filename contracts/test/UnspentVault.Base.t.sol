@@ -11,7 +11,7 @@ abstract contract UnspentVaultTestBase is Test {
     bytes32 internal constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 internal constant RESERVE_TYPEHASH = keccak256(
-        "ReserveAuthorisation(address customer,uint256 providerId,address payoutWallet,uint32 payoutVersion,bytes32 requestHash,uint256 maxAmount,uint256 nonce,uint256 authDeadline,uint256 expiry)"
+        "ReserveAuthorisation(address customer,uint256 providerId,address payoutWallet,uint32 payoutVersion,bytes32 requestHash,uint256 maxAmount,uint256 nonce,uint256 authDeadline,uint256 expiry,uint64 providerSettleAfter)"
     );
     bytes32 internal constant ACCEPT_TYPEHASH = keccak256(
         "DeliveryAcceptance(address customer,uint256 reservationId,bytes32 responseHash,uint256 amount,uint256 nonce,uint256 deadline)"
@@ -71,7 +71,7 @@ abstract contract UnspentVaultTestBase is Test {
 
     function _reserveStructHash(UnspentVault.ReserveAuthorisation memory a) internal pure returns (bytes32) {
         bytes memory head = abi.encode(RESERVE_TYPEHASH, a.customer, a.providerId, a.payoutWallet, a.payoutVersion);
-        bytes memory tail = abi.encode(a.requestHash, a.maxAmount, a.nonce, a.authDeadline, a.expiry);
+        bytes memory tail = abi.encode(a.requestHash, a.maxAmount, a.nonce, a.authDeadline, a.expiry, a.providerSettleAfter);
         return keccak256(bytes.concat(head, tail));
     }
 
@@ -115,8 +115,25 @@ abstract contract UnspentVaultTestBase is Test {
             maxAmount: amount,
             nonce: nonce,
             authDeadline: AUTH_DEADLINE,
-            expiry: EXPIRY
+            expiry: EXPIRY,
+            providerSettleAfter: 0
         });
+    }
+
+    /// @dev Same authorisation with a signed consent window (0 keeps the default customer-signature path).
+    function _authWithConsent(uint256 nonce, uint256 amount, uint64 settleAfter)
+        internal
+        view
+        returns (UnspentVault.ReserveAuthorisation memory)
+    {
+        UnspentVault.ReserveAuthorisation memory a = _auth(nonce, amount);
+        a.providerSettleAfter = settleAfter;
+        return a;
+    }
+
+    function _reserveConsent(uint256 nonce, uint256 amount, uint64 settleAfter) internal returns (uint256) {
+        UnspentVault.ReserveAuthorisation memory a = _authWithConsent(nonce, amount, settleAfter);
+        return _submit(a, _sigReserve(ALICE_PK, a));
     }
 
     function _auth(uint256 nonce, uint256 amount) internal view returns (UnspentVault.ReserveAuthorisation memory) {

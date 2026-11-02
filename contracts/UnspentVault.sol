@@ -5,17 +5,24 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC1271} from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title UnspentVault
 /// @notice Immutable, adminless vault for refundable, provider-scoped prepaid API credits.
 /// @dev All monetary values are integer micro-USDC (6 decimals). No owner, pause,
 /// upgrade, rescue or sweep exists. Provider owners control only their own registry
-/// configuration, never customer balances. Signatures support EOA ECDSA only
-/// (65-byte signatures); ERC-1271 contract-wallet signatures are not supported.
+/// configuration, never customer balances. Signatures accept EOA ECDSA (65-byte) and
+/// ERC-1271 contract-wallet signatures; a contract customer is checked with
+/// isValidSignature and no other code path trusts the returned address.
 /// Payout destinations are bound when reserving, even if the provider later changes
-/// its configuration. Withholding acceptance exposes providers to nonpayment risk.
-/// A response hash records customer consent, NOT proof of off-chain service quality.
+/// its configuration. Withholding acceptance exposes providers to nonpayment risk;
+/// a customer may opt in, per reservation, to a bounded window after which the
+/// provider can claim settlement without a fresh signature ("consent settlement").
+/// That opt-in is signed at reservation time, so it is explicit, capped by maxAmount
+/// and expires with the reservation; it is not a default and cannot be turned on by
+/// the provider. A response hash records customer consent, NOT proof of off-chain
+/// service quality, and a consent settlement records the provider's claim only.
 /// The configured asset must behave as non-rebasing, exact-transfer USDC. Issuer or
 /// network restrictions may prevent transfers. Direct token transfers and forced
 /// native sends (including Arc native-USDC surplus) never create credits and cannot
@@ -55,6 +62,7 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         bytes32 requestHash;
         bytes32 responseHash;
         uint256 settledAmount;
+        uint64 providerSettleAfter;
     }
 
     struct ReserveAuthorisation {
@@ -67,6 +75,8 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         uint256 nonce;
         uint256 authDeadline;
         uint256 expiry;
+        /// @dev Zero means customer-signature settlement only (the default).
+        uint64 providerSettleAfter;
     }
 
     struct DeliveryAcceptance {
@@ -102,6 +112,9 @@ contract UnspentVault is EIP712, ReentrancyGuard {
     error InvalidResponseHash();
     error AmountExceedsReservation();
     error ReservationNotExpired();
+    error InvalidSettlementConsent();
+    error NoSettlementConsent();
+    error ConsentWindowNotOpen();
 
     event ProviderRegistered(uint256 indexed providerId, address indexed owner, address payoutWallet, bytes32 metadataHash);
     event ProviderPayoutUpdated(uint256 indexed providerId, address oldPayout, address newPayout, uint32 version);
@@ -111,12 +124,14 @@ contract UnspentVault is EIP712, ReentrancyGuard {
     event UsageSettled(uint256 indexed reservationId, uint256 indexed providerId, address indexed customer, uint256 amount, bytes32 responseHash, address payoutWallet);
     event ReservationReleased(uint256 indexed reservationId, uint256 indexed providerId, address indexed customer, uint256 amount);
     event CreditsRefunded(uint256 indexed providerId, address indexed customer, uint256 amount);
+    /// @notice A settlement paid under the customer's signed consent window, not a fresh acceptance.
+    event ConsentSettlement(uint256 indexed reservationId, uint256 indexed providerId, address indexed customer);
 
     /// @notice Maximum reservation lifetime measured from submission time, in seconds.
     uint256 public constant MAX_RESERVATION_DURATION = 1 days;
     /// @notice Exact EIP-712 reserve schema, including the signed submission deadline.
     bytes32 public constant RESERVE_AUTHORISATION_TYPEHASH = keccak256(
-        "ReserveAuthorisation(address customer,uint256 providerId,address payoutWallet,uint32 payoutVersion,bytes32 requestHash,uint256 maxAmount,uint256 nonce,uint256 authDeadline,uint256 expiry)"
+        "ReserveAuthorisation(address customer,uint256 providerId,address payoutWallet,uint32 payoutVersion,bytes32 requestHash,uint256 maxAmount,uint256 nonce,uint256 authDeadline,uint256 expiry,uint64 providerSettleAfter)"
     );
     /// @notice Exact EIP-712 delivery-acceptance schema.
     bytes32 public constant DELIVERY_ACCEPTANCE_TYPEHASH = keccak256(
@@ -225,6 +240,13 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         if (auth.expiry > block.timestamp + MAX_RESERVATION_DURATION || auth.expiry > type(uint64).max) {
             revert ExpiryTooFar();
         }
+        // A consent window must open after the signed submission deadline and close before expiry, so the
+        // customer keeps a real acceptance window and the provider never gains time beyond the reservation.
+        if (auth.providerSettleAfter != 0) {
+            if (auth.providerSettleAfter <= auth.authDeadline || auth.providerSettleAfter >= auth.expiry) {
+                revert InvalidSettlementConsent();
+            }
+        }
         _verifySignature(hashReserveAuthorisation(auth), signature, auth.customer);
         if (usedReserveNonce[auth.customer][auth.nonce]) revert NonceUsed();
         usedReserveNonce[auth.customer][auth.nonce] = true;
@@ -245,6 +267,7 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         reservation.expiry = uint64(auth.expiry);
         reservation.maxAmount = auth.maxAmount;
         reservation.requestHash = auth.requestHash;
+        reservation.providerSettleAfter = auth.providerSettleAfter;
         emit UsageReserved(reservationId, auth.providerId, auth.customer, auth.maxAmount, auth.expiry, auth.requestHash);
     }
 
@@ -274,6 +297,22 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         if (msg.sender != reservation.customer) revert NotCustomer();
         _validateSettlement(reservation, responseHash, amount);
         _settle(reservationId, reservation, responseHash, amount);
+    }
+
+    /// @notice Claims a reservation the customer explicitly opted into settling without a fresh signature.
+    /// @dev Only the provider's registry owner may call, only inside the window the customer signed, and only
+    /// while the reservation is still open. The response hash is the provider's claim: this path records that a
+    /// provider asserted delivery, not that the customer accepted it. A customer who wants to keep control must
+    /// not sign a non-zero providerSettleAfter in the first place.
+    function settleConsented(uint256 reservationId, bytes32 responseHash, uint256 amount) external nonReentrant {
+        Reservation storage reservation = _openReservation(reservationId);
+        uint64 consentTime = reservation.providerSettleAfter;
+        if (consentTime == 0) revert NoSettlementConsent();
+        if (block.timestamp < consentTime) revert ConsentWindowNotOpen();
+        if (providers[reservation.providerId].owner != msg.sender) revert NotProviderOwner();
+        _validateSettlement(reservation, responseHash, amount);
+        _settle(reservationId, reservation, responseHash, amount);
+        emit ConsentSettlement(reservationId, reservation.providerId, reservation.customer);
     }
 
     /// @notice Returns an expired reservation to its customer's available credits; any caller may submit.
@@ -365,7 +404,17 @@ contract UnspentVault is EIP712, ReentrancyGuard {
         if (reservation.status != ReservationStatus.Reserved) revert ReservationNotOpen();
     }
 
-    function _verifySignature(bytes32 digest, bytes calldata signature, address customer) private pure {
+    /// @dev EOA signatures use ECDSA; a customer with code is checked through ERC-1271. The low-level call keeps a
+    /// non-conforming wallet from reverting with its own error, and every failure path maps to InvalidSignature.
+    function _verifySignature(bytes32 digest, bytes calldata signature, address customer) private view {
+        if (customer.code.length > 0) {
+            (bool ok, bytes memory result) =
+                customer.staticcall(abi.encodeCall(IERC1271.isValidSignature, (digest, signature)));
+            if (!ok || result.length < 32 || bytes4(result) != IERC1271.isValidSignature.selector) {
+                revert InvalidSignature();
+            }
+            return;
+        }
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, signature);
         if (err != ECDSA.RecoverError.NoError || signer != customer || signer == address(0)) {
             revert InvalidSignature();
