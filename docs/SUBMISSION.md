@@ -77,6 +77,8 @@ Studio is where the core build happened, and its advantage was proximity: the co
 
 The split below follows the commit log (the author field of each commit), not memory. It is a record of who committed, not proof of which tool wrote which line: an author string can be set freely. The stronger evidence is the Studio screen recordings kept with the submission (build history, contract source, test run and preview inside Studio) and the reproducible artifacts — the contract bytecode, the test suite, the testnet addresses in `deployments.json`. The commit counts below are consistent with those, not a substitute for them.
 
+The capture files, the commit range and what each can and cannot establish are recorded in [docs/studio-evidence.md](studio-evidence.md).
+
 **In Arc Studio** (72 commits authored "Arc Studio", from `2608e2a` "checkpoint 1" on 1 Nov 2026 02:22 UTC to `491a509` at 08:05 UTC; the repository's first commits are the owner's own: "Initial commit" with a README, and the product requirements document):
 - The `UnspentVault` contract and its Foundry test suite; the Arc Testnet deployment and provider registration.
 - The sample API and relayer, the Vite/React app (landing, app, docs, proof, provider portal), and the independent recovery client.
