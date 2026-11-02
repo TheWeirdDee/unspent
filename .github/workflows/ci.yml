@@ -17,6 +17,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun run test:unit
+      # The image copies a subset of the repo; a server import outside that set only fails in the container.
+      - run: bun run check:docker
       - run: bun run build
         env:
           VITE_NETWORK: mainnet
