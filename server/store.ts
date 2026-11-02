@@ -95,6 +95,35 @@ export interface CreateStoreOptions {
 const recordOf = (row: Record<string, unknown>): RequestRecord =>
   (typeof row.record === "string" ? JSON.parse(row.record) : row.record) as RequestRecord;
 
+/** Copies a pre-existing `unspent_state` snapshot into the per-row tables. Missing table = nothing to import. */
+async function importLegacySnapshot(sql: SqlTag, data: Data): Promise<void> {
+  let legacy: Record<string, unknown>[];
+  try {
+    legacy = await sql`SELECT data FROM unspent_state WHERE id = 1`;
+  } catch {
+    return; // table absent: a fresh database
+  }
+  if (!legacy.length) return;
+  const snapshot = (typeof legacy[0].data === "string" ? JSON.parse(legacy[0].data as string) : legacy[0].data) as Data;
+  const requests = Object.values(snapshot?.requests ?? {});
+  for (const r of requests) {
+    if (!r?.requestId) continue;
+    data.requests[r.requestId] = r;
+    await sql`INSERT INTO unspent_requests (request_id, state, created_at, record) VALUES (${r.requestId}, ${r.state}, ${r.createdAt ?? Date.now()}, ${JSON.stringify(r)}::jsonb)
+      ON CONFLICT (request_id) DO NOTHING`;
+  }
+  for (const [key, calls] of Object.entries(snapshot?.usage ?? {})) {
+    const [day, scope] = key.split(":");
+    if (!day || !scope) continue;
+    data.usage[key] = Number(calls);
+    await sql`INSERT INTO unspent_usage (day, scope, calls) VALUES (${day}, ${scope}, ${Number(calls)})
+      ON CONFLICT (day, scope) DO NOTHING`;
+  }
+  if (requests.length || Object.keys(snapshot?.usage ?? {}).length) {
+    console.log(`imported ${requests.length} request record(s) and ${Object.keys(snapshot?.usage ?? {}).length} usage counter(s) from unspent_state`);
+  }
+}
+
 export async function createStore(opts: CreateStoreOptions = {}): Promise<Store & { persistence: "postgres" | "file" }> {
   const sql = opts.sql ?? null;
   const now = opts.now ?? Date.now;
@@ -127,6 +156,10 @@ export async function createStore(opts: CreateStoreOptions = {}): Promise<Store 
       const day = String(row.day instanceof Date ? row.day.toISOString().slice(0, 10) : row.day).slice(0, 10);
       data.usage[`${day}:${row.scope}`] = Number(row.calls);
     }
+    // One-time import from the previous single-snapshot layout. Without it, deploying this code would silently drop the
+    // records of requests that were in flight at the moment of the deploy (learned from `unspent_state`, which is left
+    // in place as a backup rather than deleted).
+    if (rows.length === 0) await importLegacySnapshot(sql, data);
   } else if (existsSync(file)) {
     try {
       Object.assign(data, JSON.parse(readFileSync(file, "utf8")) as Data);
