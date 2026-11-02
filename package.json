@@ -17,6 +17,7 @@
     "test:unit": "bun test",
     "test:mutation": "bun scripts/mutation-test.ts",
     "test:browsers": "bun scripts/browser-matrix.ts",
+    "check:docker": "bun scripts/check-docker-context.ts",
     "sync:deployments": "bun scripts/sync-deployments.ts",
     "start": "bun server/index.ts",
     "gen:testnet-keys": "bun scripts/gen-testnet-keys.ts"
