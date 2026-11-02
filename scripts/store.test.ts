@@ -144,6 +144,31 @@ describe("postgres store", () => {
     expect(store.get("req_reserved")).toBeDefined();
   });
 
+  test("imports a legacy single-snapshot row on first boot, and keeps the backup", async () => {
+    const db = new PGlite();
+    const tag = pgliteTag(db);
+    const rec = record("req_legacy", { state: "delivered" });
+    const day = new Date(NOW).toISOString().slice(0, 10); // the store's "today" for this fake clock
+    const snapshot = { requests: { [rec.requestId]: rec }, usage: { [`${day}:global`]: 3, [`${day}:0xe306b8ae6e958f7c8e3401f1f12d550e5daecab6`]: 2 } };
+    await tag`CREATE TABLE unspent_state (id int PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`;
+    await tag`INSERT INTO unspent_state (id, data) VALUES (1, ${JSON.stringify(snapshot)}::jsonb)`;
+
+    const store = await createStore({ sql: tag, now: () => NOW });
+    expect(store.get("req_legacy")?.state).toBe("delivered");
+    expect(store.usageToday("0xE306b8ae6e958F7C8e3401f1f12d550E5DAecab6")).toEqual({ global: 3, customer: 2 });
+
+    // The old row is left as a backup, and a second boot does not duplicate anything.
+    const again = await createStore({ sql: tag, now: () => NOW });
+    expect(again.all()).toHaveLength(1);
+    const legacy = await db.query("SELECT count(*)::int AS n FROM unspent_state");
+    expect((legacy.rows[0] as { n: number }).n).toBe(1);
+  });
+
+  test("starts cleanly when there is no legacy table at all", async () => {
+    const { store } = await freshStore(); // freshStore never creates unspent_state
+    expect(store.all()).toEqual([]);
+  });
+
   test("revokeAll invalidates every stored token hash in the database too", async () => {
     const { db, store } = await freshStore();
     await store.putDurable(record("req_a"));
