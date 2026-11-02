@@ -24,12 +24,12 @@ export default function Docs() {
       </nav>
       <article className="min-w-0">
         <h1 className="text-3xl font-semibold sm:text-4xl">Documentation</h1>
-        <div className="mt-6"><Notice tone="warn" title="Demonstration software">The UnspentVault contract has not been independently audited. Use small amounts. Network in this build: {dep.name} (chain {dep.chainId}).</Notice></div>
+
 
         <div className="mt-10">
           <H id="overview">Overview</H>
           <P>UNSPENT is a prepaid payment system for APIs. You deposit USDC into a smart contract, and the same transaction creates your credits. You spend credits per request with signatures you control, and you can withdraw anything unspent.</P>
-          <P>Contract: <span className="mono break-all">{VAULT ?? "not deployed on this network"}</span>. Ledger values are integer micro-USDC (6 decimals). 0.10 USDC is 100000.</P>
+          <P>Network: {dep.name} (chain {dep.chainId}). Contract: <span className="mono break-all">{VAULT ?? "not deployed on this network"}</span>. Ledger values are integer micro-USDC (6 decimals). 0.10 USDC is 100000.</P>
 
           <H id="credits">What credits are</H>
           <P>Credits are an accounting entry inside the vault, not a token. One credit equals one USDC held by the contract. Every account is scoped to one customer and one provider, so credits for one provider can never be spent with another.</P>
@@ -73,6 +73,7 @@ DeliveryAcceptance(
             <li>Settlement requires <span className="mono">block.timestamp &lt; expiry</span>. Release requires <span className="mono">block.timestamp &gt;= expiry</span>. They never overlap, so a reservation is settled or released, never both.</li>
           </ul>
           <P>These boundaries are tested at one second before, at, and one second after each deadline.</P>
+          <P>Expiry does not move funds automatically. Anyone can submit <span className="mono">releaseExpired(reservationId)</span> after expiry to return the reserved amount to Available. The customer can then submit a separate refund transaction.</P>
 
           <H id="refunds">Refunds</H>
           <P><span className="mono">refund(providerId, amount)</span> sends available credits to the calling wallet. It cannot send anywhere else, cannot touch reserved or spent amounts, and keeps working even if the provider is deactivated.</P>
@@ -100,7 +101,11 @@ const r = await publicClient.readContract({
   address: VAULT, abi: unspentVaultAbi,
   functionName: "getReservation", args: [reservationId],
 });
-if (r.status !== 1 || r.customer !== customer || r.maxAmount !== price) throw new Error("not a valid open reservation");
+if (
+  r.status !== 1 || r.customer.toLowerCase() !== customer.toLowerCase() ||
+  r.providerId !== providerId || r.requestHash.toLowerCase() !== requestHash.toLowerCase() ||
+  r.maxAmount !== price
+) throw new Error("not a valid open reservation");
 if (BigInt(Math.floor(Date.now() / 1000)) + 60n >= r.expiry) throw new Error("too close to expiry");
 
 const output = await runYourService(input);          // your real service
@@ -111,7 +116,7 @@ await relayer.writeContract({
   address: VAULT, abi: unspentVaultAbi,
   functionName: "acceptAndSettle", args: [acceptance, signature],
 });`}</Code>
-          <Notice tone="info" title="Commercial trade-off">A customer can decline to sign acceptance after receiving a response, and then the reservation expires back to them. This version is customer-first by design. Mitigate it with small per-call prices and pricing in the risk.</Notice>
+          <Notice tone="info" title="Commercial trade-off">A customer can decline to sign acceptance after receiving a response. After expiry, anyone can release the reservation back to the customer&rsquo;s available credits; the customer can then refund them. This version is customer-first by design. Mitigate it with small per-call prices and pricing in the risk.</Notice>
 
           <H id="trust">Trust assumptions</H>
           <ul className="mt-3 list-disc space-y-1.5 pl-5 text-muted">

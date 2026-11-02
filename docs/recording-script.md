@@ -1,63 +1,35 @@
-# Recording script (about 6.5 minutes)
+﻿# UNSPENT submission video — 180 seconds
 
-Rule for the whole video: **nothing is re-staged.** Every transaction shown is an existing receipt from 1 Nov 2026 and the video says so. Any clip, screenshot or page that was not recorded live carries an on-screen label with its original date, for example "Recorded 1 Nov 2026, not a new transaction". No new funded transaction is made for this recording.
+All transaction footage reviews the completed 1 Nov 2026 run. Never request signatures or initiate transactions. Record the deployed app; do not recreate its interface. Studio footage must show the authenticated project and genuine history, not just Git author names.
 
-## Before recording
+## 0:00–0:18 — Problem
+Show the landing page, then enter the app.
+“You prepaid for an API. Its billing backend goes down. Can you still get your unused money back? UNSPENT keeps prepaid USDC credits in an Arc smart contract, so your refund does not depend on the provider’s database.”
 
-- Open these in tabs, in order: Studio project (signed in), GitHub commits page, `/proof`, `/app/use`, the five mainnet explorer links from [SUBMISSION.md](SUBMISSION.md), the recovery client, MetaMask issue #308206.
-- Browser: ad and privacy extensions off or allowed for these sites, so nothing is cancelled on camera. Hide bookmarks, other tabs and your wallet's full account list.
-- Do not connect a wallet and do not click any button that sends a transaction. Everything below is read-only.
+## 0:18–0:45 — Arc Studio
+Show the project name, real contract/test work, build conversation and preview. Requires the owner's authenticated session.
+“Here is the UNSPENT project in Arc Studio. Studio built UnspentVault, its contract tests, the application and the API integration. The contract records deposits, reservations, settlements and refunds. Later reliability fixes and mainnet deployment preparation happened outside Studio. The owner signed the mainnet transactions; Studio did not sign or deploy them.”
 
-## 1. Opening (0:00 to 0:30)
+## 0:45–1:05 — Application
+Show the actual deposit and API screens without clicking transaction controls.
+“Approval permits an exact transfer; deposit moves USDC and creates credits in one transaction. Available credits are refundable. A customer’s signed authorization reserves a bounded amount: here, ten cents per request. The provider is paid only when the customer accepts the response.”
 
-**Show:** the app landing page.
-**Say:** "UNSPENT is refundable, USDC-backed prepaid API credits on Arc. You pay a provider only for a response you accept, and you can withdraw what's unspent at any time. Before anything else: the contract is not audited, MetaMask flags our domains and we haven't resolved why, and the mainnet evidence is one small run."
+## 1:05–1:55 — Completed mainnet journey
+Persistent label: Reviewing the completed mainnet run · 1 Nov 2026.
+Show deposit, reserve, recorded response, settlement and refund receipts. Hold network, success, amounts and destinations legibly. Verify the response hash against the settlement. If original output footage is unavailable, show the public documentation labelled Recorded response from completed run.
+“We are reviewing the completed November first mainnet run, not making new transactions. Twenty cents entered the vault. The customer authorized a ten-cent reservation, and the API returned this recorded Gemini response. These lines come from the documented run. Their matching hash binds this text to the customer’s acceptance; it does not independently certify Google’s authorship. Acceptance settled ten cents to the provider’s payout wallet. The remaining ten cents was refunded to the customer. The provider wallet belongs to the same owner. This is one small demonstration with real USDC.”
 
-## 2. What was built in Arc Studio, and what came after (0:30 to 1:45)
+## 1:55–2:25 — Independent recovery
+Open the actual recovery client on mainnet. Read customer 0xE306b8ae6e958F7C8e3401f1f12d550E5DAecab6, provider 1. Require live figures: Available 0; Reserved 0; Spent 0.10; Refunded 0.10.
+“This recovery client lives on a separate host. It reads the vault through RPC, optionally through its own read-only relay, without the primary API, database or relayer. The live account shows zero available, zero reserved, ten cents spent and ten cents refunded. The actual API-suspension recovery test was on testnet. No mainnet outage test has been performed.”
 
-**Show:** the Studio project and its build history (signed-in; owner-only). Then the GitHub commit list for `main`.
-**Say:** "This was built in Arc Studio. On GitHub, 72 commits are authored by Arc Studio, from the first checkpoint at 02:22 UTC on 1 November to 08:05 UTC: the contract and its tests, the testnet deployment, the API, the app and the independent recovery client." (Scroll to `2608e2a`, then to `491a509`.) "Everything after that, over 40 commits, came afterwards in VS Code with Claude Code: build fixes, the mainnet deployment record, the proof page's mainnet section, an RPC fix for privacy extensions, and documentation. Those are not Studio work."
-**On screen:** SUBMISSION.md's table, "What was built in Arc Studio, and what was done afterwards".
-**Note:** Studio's own history is only visible to its owner. Say so if a reviewer will not have access.
+## 2:25–2:45 — Evidence and limitations
+Show /proof, mainnet first, then the public repository.
+“The proof page checks existing receipts against the chain, and the source is public. This is an experimental, unaudited contract. MetaMask’s domain warning remains unresolved. A customer can decline acceptance, creating nonpayment risk for the provider.”
 
-## 3. The working hosted app (1:45 to 2:45)
+## 2:45–3:00 — Close
+Return to the live product. Keep app and repository links legible.
+“UNSPENT makes prepaid credits verifiable and unused balances recoverable. The next step is a security review and a reusable integration for other API providers. Explore the app and public repository at the links on screen.”
 
-**Show:** https://unspent-xi.vercel.app. Point at the "Arc" network badge, the contract card (vault `0xa737…5f49`, held 0, owed 0), then the footer build stamp.
-**Show:** `/proof`. Scroll to "Arc mainnet (chain 5042)": the "Real USDC, unaudited contract" tag, the seven receipts each marked confirmed, and the paragraph about the MetaMask warning.
-**Say:** "The proof page re-reads every receipt from the chain when it loads; a receipt it can't read shows as not verified instead of a green tick."
-
-## 4. The real Gemini output (2:45 to 3:35)
-
-**Show:** the saved screenshot of the Use the API page from the mainnet run (labelled "Recorded 1 Nov 2026, not a new request"). It shows the three Gemini bullets and the response hash `0x5b47fb6c…3b6d2e`.
-**Say:** "These three lines are what the model returned. The customer signed acceptance of exactly this response hash."
-**Show (terminal):**
-`cast keccak $'- Conducted mainnet test of prepaid refundable USDC credits\n- Utilized the Arc platform for the testing phase\n- Scheduled and executed on November 1, 2026'`
-**Say:** "Hashing that text gives `0x5b47fb6c…e3b6d2e`. The next section shows the same hash inside the settlement transaction."
-
-## 5. The mainnet deposit, settlement and refund (3:35 to 5:15)
-
-**Say first:** "These are the existing receipts from 1 November, not new transactions."
-For each, open the explorer link and show the decoded logs:
-1. **Deposit** `0x3cae816d…d49cbf`: USDC transfer of 0.20 from the customer to the vault, and `CreditsDeposited`.
-2. **Reserve** `0x95c1399e…02a1b1`: sent by the relayer, carrying the customer's signature; 0.10 reserved.
-3. **Settlement** `0xf69425cd…2d601f`: USDC transfer of 0.10 from the vault to the payout wallet, and `UsageSettled` containing response hash `0x5b47fb6c…e3b6d2e`. **Point at the match with section 4.**
-4. **Refund** `0x0b8c3b32…bdd11b`: USDC transfer of 0.10 back to the customer, and `CreditsRefunded`.
-**Show:** the vault address page: it holds 0 USDC.
-**Say:** "In total 0.20 went in, 0.10 was paid to the provider's payout wallet, 0.10 came back, and the vault now holds nothing. The provider's owner and payout wallet are the same wallet, so the 0.10 went to a wallet the owner controls."
-
-## 6. Independent recovery (5:15 to 5:50)
-
-**Show:** https://unspent-recovery.pages.dev. It opens on Arc mainnet. Paste the customer address in the read-only box: available 0, reserved 0, spent 0.10, refunded 0.10.
-**Say:** "This is a separate static site. It reads the contract directly and never calls the UNSPENT API. We tested real recovery during a real outage on testnet: we suspended the hosted API at its host and used this client to release two expired reservations and refund 1.00 USDC from a real MetaMask wallet." (Show [fresh-wallet-recovery-test.md](fresh-wallet-recovery-test.md), labelled "testnet, recorded 1 Nov 2026".) "We have **not** run an outage test on mainnet."
-
-## 7. Close (5:50 to 6:30)
-
-**Show:** the README status block, then GitHub issue #308206.
-**Say:** "To be plain about what this does not show: the contract is unaudited, this is one small mainnet run, MetaMask flags both domains and the cause is unknown, and there's been no mainnet outage test. Everything you saw is checkable at the links in the submission."
-
-## Do not
-
-- Present a screenshot or earlier clip as live or as a new transaction.
-- Say "audited", "mainnet-ready", "production-ready", or that the MetaMask warning is fixed or a false positive.
-- Say the mainnet journey included an outage, or that Studio produced the later fixes.
-- Run a new funded transaction just for the video.
+## Export and verification
+Exactly 180 seconds; 1920×1080; H.264/AAC; readable burned-in captions; narration. No upload. Target C:\Users\DELL\Desktop\UNSPENT-Demo-3min.mp4. Verify with ffprobe and watch the complete export. Disclose if audio was not auditioned. Do not claim completion while authenticated Studio footage is missing.
