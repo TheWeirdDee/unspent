@@ -2,6 +2,7 @@ import type { Address, Hex } from "viem";
 import { getAbiItem } from "viem";
 import { unspentVaultAbi } from "@/contracts/abi";
 import { dep, publicClient, VAULT } from "@/lib/chains";
+import { withRetry } from "@/lib/retry";
 
 export type ActivityKind = "deposit" | "reserve" | "settle" | "release" | "refund";
 export interface ActivityEvent {
@@ -55,7 +56,11 @@ async function scanVault(): Promise<ActivityResult> {
     const end = start + chunk - 1n > head ? head : start + chunk - 1n;
     let logs: RawLog[];
     try {
-      logs = (await publicClient.getLogs({ address: VAULT, events: EVENTS, fromBlock: start, toBlock: end })) as unknown as RawLog[];
+      // Bursts get 429s and very wide ranges get rejected; a few backed-off attempts fix the first and cost little.
+      logs = await withRetry(
+        async () => (await publicClient.getLogs({ address: VAULT, events: EVENTS, fromBlock: start, toBlock: end })) as unknown as RawLog[],
+        { attempts: 3, baseMs: 250 },
+      );
     } catch (e) {
       if (chunk > 1_000n) {
         chunk = chunk / 2n; // RPC rejected the range: shrink and retry this window

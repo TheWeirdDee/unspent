@@ -20,12 +20,23 @@ export const USDC = dep.usdc as Address;
  * Privacy filter lists (EasyPrivacy has ||arc.io^$third-party) make browsers block every *.arc.io host for a page on
  * another domain; a same-origin path is not affected. Wallet transactions still use the wallet's own RPC.
  */
-export const rpcTransport = () => fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${NETWORK}`), ...dep.rpcUrls.map((u) => http(u))]);
+// retryCount keeps a transient 429 on the same-origin path from immediately spilling over to a direct *.arc.io host,
+// which privacy blockers cancel and some engines report as a CORS failure.
+export const rpcTransport = () =>
+  fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${NETWORK}`), ...dep.rpcUrls.map((u) => http(u))], {
+    retryCount: 2,
+    retryDelay: 250,
+  });
 export const publicClient = createPublicClient({ chain: arcChain, transport: rpcTransport() });
 
 /** Read-only client for a specific network (the Proof page reads each network's evidence from that network). */
 export const clientFor = (net: NetworkKey) =>
-  createPublicClient({ transport: fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${net}`), ...deployments[net].rpcUrls.map((u) => http(u))]) });
+  createPublicClient({
+    transport: fallback([http(`${typeof location === "undefined" ? "" : location.origin}/rpc/${net}`), ...deployments[net].rpcUrls.map((u) => http(u))], {
+      retryCount: 2,
+      retryDelay: 250,
+    }),
+  });
 
 export const txUrl = (hash: string) => `${dep.explorer}/tx/${hash}`;
 export const addressUrl = (addr: string) => `${dep.explorer}/address/${addr}`;

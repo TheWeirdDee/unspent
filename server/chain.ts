@@ -3,6 +3,7 @@ import { unspentVaultAbi } from "../src/contracts/abi";
 import { RESERVATION_STATUS } from "../src/lib/protocol";
 import { publicClient, relayerClient, relayerAccount, VAULT } from "./config";
 import { ApiError } from "./errors";
+import { withRetry } from "../src/lib/retry";
 
 export function requireVault(): Address {
   if (!VAULT) throw new ApiError(503, "NOT_DEPLOYED", "No vault is configured for this network");
@@ -20,16 +21,20 @@ export function relayed<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 export async function readReservation(id: bigint) {
-  const r = await publicClient.readContract({ address: requireVault(), abi: unspentVaultAbi, functionName: "getReservation", args: [id] });
+  const vault = requireVault();
+  const r = await withRetry(() =>
+    publicClient.readContract({ address: vault, abi: unspentVaultAbi, functionName: "getReservation", args: [id] })
+  );
   return { ...r, statusName: RESERVATION_STATUS[r.status] };
 }
 
 export async function readProvider(id: bigint) {
-  return publicClient.readContract({ address: requireVault(), abi: unspentVaultAbi, functionName: "getProvider", args: [id] });
+  const vault = requireVault();
+  return withRetry(() => publicClient.readContract({ address: vault, abi: unspentVaultAbi, functionName: "getProvider", args: [id] }));
 }
 
 export async function chainNow(): Promise<number> {
-  const b = await publicClient.getBlock();
+  const b = await withRetry(() => publicClient.getBlock());
   return Number(b.timestamp);
 }
 
@@ -72,7 +77,7 @@ export async function relay(functionName: "reserveWithSignature" | "acceptAndSet
 /** Receipt of a previously broadcast transaction, or null if it is not (yet) visible. */
 export async function receiptOf(hash: Hex) {
   try {
-    const r = await publicClient.getTransactionReceipt({ hash });
+    const r = await withRetry(() => publicClient.getTransactionReceipt({ hash }), { attempts: 4, baseMs: 500 });
     return { status: r.status as string, logs: parseEventLogs({ abi: unspentVaultAbi, logs: r.logs }) as { eventName?: string; args?: Record<string, unknown> }[] };
   } catch {
     return null;
@@ -81,8 +86,11 @@ export async function receiptOf(hash: Hex) {
 
 /** Finds the reservation (if any) created for this customer and request hash within the last ~9,000 blocks. */
 export async function findReservedByRequest(customer: Address, requestHash: Hex): Promise<{ reservationId: string; txHash: Hex } | null> {
-  const head = await publicClient.getBlockNumber();
-  const logs = await publicClient.getContractEvents({ address: requireVault(), abi: unspentVaultAbi, eventName: "UsageReserved", args: { customer }, fromBlock: head > 9000n ? head - 9000n : 0n, toBlock: head });
+  const vault = requireVault();
+  const head = await withRetry(() => publicClient.getBlockNumber());
+  const logs = await withRetry(() =>
+    publicClient.getContractEvents({ address: vault, abi: unspentVaultAbi, eventName: "UsageReserved", args: { customer }, fromBlock: head > 9000n ? head - 9000n : 0n, toBlock: head })
+  );
   const hit = logs.find((l) => l.args.requestHash?.toLowerCase() === requestHash.toLowerCase());
   return hit && hit.args.reservationId !== undefined ? { reservationId: hit.args.reservationId.toString(), txHash: hit.transactionHash } : null;
 }

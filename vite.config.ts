@@ -25,6 +25,10 @@ export default defineConfig({
     proxy: {
       // The preview only exposes this port, so the browser reaches the billing API through here.
       "/api": { target: "http://localhost:3001", changeOrigin: true },
+      // Same-origin RPC reads, mirroring the vercel.json rewrites so local dev matches the deployment. Without this the
+      // app's first-choice transport (/rpc/<network>) 404s locally and every read pays a failed attempt before fallback.
+      "/rpc/mainnet": { target: "https://rpc.mainnet.arc.io", changeOrigin: true, rewrite: () => "/" },
+      "/rpc/testnet": { target: "https://rpc.testnet.arc.io", changeOrigin: true, rewrite: () => "/" },
       // Independent recovery client (separately built static bundle) mounted for the Studio preview only.
       "/recovery-client": { target: "http://localhost:5174", changeOrigin: true },
     },

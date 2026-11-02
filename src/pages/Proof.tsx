@@ -3,6 +3,7 @@ import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
 import { PROOF_API, PROOF_MAINNET, PROOF_TESTNET, type ProofTx } from "@/lib/proof";
+import { createLimiter } from "@/lib/limit";
 import { clientFor, dep, txUrl } from "@/lib/chains";
 import { deployments, type NetworkKey } from "@/contracts/deployments";
 import { useSolvency } from "@/hooks/useVault";
@@ -14,16 +15,30 @@ const STUDIO_PROJECT_URL = (import.meta.env.VITE_STUDIO_URL as string | undefine
 // Public share link generated from Arc Studio's share menu. Shown only when configured; never guessed.
 const STUDIO_SHARE_URL = import.meta.env.VITE_STUDIO_SHARE_URL as string | undefined;
 
+// One limiter per network for the whole page: receipts render in parallel but only four reads are in flight, so the
+// page does not turn into a 429 burst against the public RPC (which then spills over to blocked direct hosts).
+const readers = new Map<NetworkKey, ReturnType<typeof createLimiter>>();
+const readerFor = (net: NetworkKey) => {
+  let reader = readers.get(net);
+  if (!reader) {
+    reader = createLimiter(4);
+    readers.set(net, reader);
+  }
+  return reader;
+};
+
 function TxRows({ items, net }: { items: ProofTx[]; net: NetworkKey }) {
+  const read = readerFor(net);
   const qs = useQueries({
     queries: items.map((t) => ({
       queryKey: ["proof-receipt", net, t.hash],
       staleTime: 60_000,
       retry: 1,
-      queryFn: async () => {
-        const r = await clientFor(net).getTransactionReceipt({ hash: t.hash });
-        return { status: r.status, block: r.blockNumber, gasUsed: r.gasUsed };
-      },
+      queryFn: () =>
+        read(async () => {
+          const r = await clientFor(net).getTransactionReceipt({ hash: t.hash });
+          return { status: r.status, block: r.blockNumber, gasUsed: r.gasUsed };
+        }),
     })),
   });
   return (

@@ -50,3 +50,5 @@ jobs:
           version: v1.8.7
       - run: forge build
       - run: forge test
+      # Injects deliberate defects one at a time; a surviving mutant means a behaviour is untested.
+      - run: bun run test:mutation

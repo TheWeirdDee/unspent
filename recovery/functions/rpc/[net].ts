@@ -5,8 +5,10 @@
 // affected. This is NOT the UNSPENT API: it forwards JSON-RPC reads to Arc's public RPC and nothing else, holds no state,
 // no keys and no secrets, and the client falls back to the direct RPC hosts (and any RPC the user adds) without it.
 // Transactions are never sent through here: the user's wallet sends them.
-// Limits in this file: read-only methods, at most 20 calls and 100 KB per request, a 10 s timeout per upstream. There is no
-// per-client rate limit here; set one at the host (Cloudflare rate-limiting rules) if this deployment sees abuse.
+// Limits in this file: read-only methods, at most 20 calls and 100 KB per request, a 10 s timeout per upstream, and a
+// per-client token bucket (see `takeToken`). The bucket lives in module scope, so it is per Cloudflare isolate, not global:
+// a client can exceed it by landing on several isolates. It is a cheap abuse brake on top of the host's own rate-limiting
+// rules, not a hard quota. The client never depends on this path: it falls back to the direct RPC hosts without it.
 
 // Arc's public endpoints (https://docs.arc.io/arc/references/rpc-endpoints.md), tried in order on a 429, a 5xx or a network
 // error. All visitors share this host's address, so the primary endpoint's rate limit is hit sooner than from a browser.
@@ -35,6 +37,26 @@ const READ_ONLY = new Set([
 ]);
 
 const MAX_BODY_BYTES = 100_000;
+
+// ---- per-client token bucket (per isolate) ----
+export interface Bucket { tokens: number; updated: number }
+export const BUCKET_CAPACITY = 30; // burst
+export const BUCKET_REFILL_PER_SEC = 2; // sustained reads per second per client
+
+/** Returns true when the caller may proceed. Pure over the supplied map so it can be tested without a Worker runtime. */
+export function takeToken(buckets: Map<string, Bucket>, key: string, now: number): boolean {
+  const b = buckets.get(key) ?? { tokens: BUCKET_CAPACITY, updated: now };
+  const elapsedSec = Math.max(0, (now - b.updated) / 1000);
+  const tokens = Math.min(BUCKET_CAPACITY, b.tokens + elapsedSec * BUCKET_REFILL_PER_SEC);
+  if (tokens < 1) {
+    buckets.set(key, { tokens, updated: now });
+    return false;
+  }
+  buckets.set(key, { tokens: tokens - 1, updated: now });
+  return true;
+}
+
+const buckets = new Map<string, Bucket>();
 
 /** Reads the request body but stops (and refuses) as soon as it exceeds the limit, instead of buffering an arbitrary upload first. */
 async function readLimited(request: Request, max: number): Promise<string | null> {
@@ -68,6 +90,14 @@ export const onRequestPost = async (context: { request: Request; params: { net?:
   const net = Array.isArray(context.params.net) ? context.params.net[0] : context.params.net;
   const upstreams = net && Object.hasOwn(UPSTREAM, net) ? UPSTREAM[net] : undefined;
   if (!upstreams) return reply(404, { error: "unknown network" });
+
+  const client = context.request.headers.get("cf-connecting-ip") ?? context.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+  if (!takeToken(buckets, `${net}:${client}`, Date.now())) {
+    return new Response(JSON.stringify({ error: "rate limited; retry shortly or use the direct RPC" }), {
+      status: 429,
+      headers: { "content-type": "application/json", "cache-control": "no-store", "retry-after": "1" },
+    });
+  }
 
   if (Number(context.request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return reply(413, { error: "request too large" });
   const text = await readLimited(context.request, MAX_BODY_BYTES);
