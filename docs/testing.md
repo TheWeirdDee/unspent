@@ -1,6 +1,38 @@
 # Verification record
 
-All results below were produced in the Arc Studio sandbox on 1 Nov 2026. Re-run commands are in the README.
+The first section records the 2 Nov 2026 runs made on a local Windows checkout; the older sections below were produced in the Arc Studio sandbox on 1 Nov 2026 and are kept as recorded. Re-run commands are in the README.
+
+## 2 Nov 2026 — local verification of the hardening work
+
+Everything here was run against this working tree, not quoted from an earlier session.
+
+| Check | Command | Result |
+|---|---|---|
+| Contract suite | `forge test` (Foundry 1.8.7) | 218 passed, 0 failed, 14 suites. 217 test functions plus the invariant campaign, which Forge counts as one test. |
+| Mutation testing | `bun run test:mutation` | 9/9 mutants killed. Each mutant is an injected defect; a killed mutant means the named suite fails, which is the evidence that the behaviour is actually tested. |
+| Unit tests | `bun run test:unit` | 74 passed, 0 failed across 4 files: delivery guard (31), lifecycle (22), store (9), retry/limiter/relay bucket (12). |
+| Lint and typecheck | `bun run check` | clean (oxlint + three `tsc --noEmit` projects). |
+| Builds | `bun run build`, `bun run recovery:build` | both succeed. |
+| Browser matrix | `bun run test:browsers` | 45/45 checks: Chromium, Firefox and WebKit at 375, 768 and 1440 px over `/`, `/docs`, `/proof`, `/recover`, `/app`. Asserts no horizontal overflow, a visible header, HTTP < 400 and no uncaught page error. |
+
+### What the new contract tests cover
+
+`contracts/test/UnspentVault.Wallets.t.sol` (25 tests):
+
+- **ERC-1271:** a contract-wallet customer reserves and accepts through `isValidSignature`; a foreign key is rejected; a wallet that returns the wrong magic value, reverts, or returns short data is rejected and never reaches the settlement path; `settleDirect` and `refund` work when the wallet calls them itself; replay after settlement is refused; an EOA customer still rejects a non-ECDSA signature.
+- **Consent settlement:** a default reservation cannot be claimed by the provider (`NoSettlementConsent`); a claim before the signed time is refused; at the signed time the provider owner claims and the remainder returns to available; only that provider's owner may claim; a customer acceptance before the window wins; expiry still wins; the amount cap, zero amount and zero response hash are enforced; a deactivated provider can still be claimed; replay is refused; a consent timestamp at or before the signed deadline, or at or after expiry, is refused at reserve time; changing the consent timestamp after signing invalidates the signature; a fuzz test over every claimable amount keeps the account identity and `solvency()` intact.
+
+### What the store tests prove (and do not)
+
+`scripts/store.test.ts` runs the real SQL against **PGlite**, Postgres compiled to WASM — the same engine and the same statements, not a hand-written fake. It covers one row per request, reload after restart, atomic counters under 25 concurrent increments, a failing durable write leaving no row behind, an interrupted counter update writing neither counter, a failed write not blocking the next, prune deleting stale rows in the database, and revocation reaching stored token hashes.
+
+It does **not** prove behaviour against a hosted Neon instance under network partitions, and it does not make the API multi-instance safe: the one-model-call lock is still process-local.
+
+### What the browser matrix proves (and does not)
+
+It proves the pages render in three engines at three widths without layout overflow, a missing header or an uncaught exception. It found a real defect on the way: the app's first-choice transport `/rpc/<network>` exists only as a Vercel rewrite, so in local dev every read paid a 404 before falling back (and WebKit reported the resulting fallback as a CORS failure). `vite.config.ts` now proxies `/rpc/mainnet` and `/rpc/testnet`, matching the deployment.
+
+It does **not** prove a wallet flow: no extension wallet is installed, and these are not `scripts/e2e-*.ts`.
 
 ## Contract (Foundry)
 
@@ -53,7 +85,7 @@ The deployed testnet runtime bytecode equals the freshly compiled artifact with 
 
 ## Not verified
 
-Real wallets (MetaMask, Rabby) on a physical browser; mobile devices; the real API journey; recovery with a wallet on the wrong network end to end; Firefox and Safari; mainnet anything.
+Real wallets (MetaMask, Rabby) on a physical browser; mobile devices; the real API journey; recovery with a wallet on the wrong network end to end; mainnet anything. Firefox (Gecko) and WebKit are now covered by the automated browser matrix recorded in the 2 Nov 2026 section above, which is neither a real wallet nor iOS Safari itself.
 
 ## Sandbox note for screenshots
 

@@ -51,7 +51,8 @@ The workflow below is what the running app does, in order. Everything is enforce
 | **Implemented and running** | The full flow above, the provider portal, on-chain activity history, the proof page, the independent recovery client, and the simulated-outage control (`/api/v1/demo/outage`, operator-token protected). |
 | **Verified live on Arc mainnet with real USDC** | Deposit, customer-signed reservation, a real Gemini response, customer acceptance, settlement to the payout wallet, refund — one run, 0.20 in / 0.10 settled / 0.10 refunded. See [§4](#4-mainnet-evidence). |
 | **Verified live on Arc Testnet** | The same journey with sandbox wallets (25/25 scripted checks, transaction hashes in `docs/real-journey.json`), plus a hosted outage test using the owner's own wallet where the API was genuinely suspended at its host. See [§10](#10-verification-and-limitations). |
-| **Local or mock regression tests (not on-chain)** | Acceptance guard and delivery-hash tests, one-model-call-per-reservation, durable intent before irreversible steps, output retention, reconciliation of interrupted records, and the navigation and stale-result browser fixes. Details and limits in [docs/audit-response.md](docs/audit-response.md). |
+| **Local or mock regression tests (not on-chain)** | Acceptance guard and delivery-hash tests, one-model-call-per-reservation, durable intent before irreversible steps, output retention, reconciliation of interrupted records, store writes under injected failures, RPC retry/limiter behaviour, and the navigation and stale-result browser fixes. Details and limits in [docs/audit-response.md](docs/audit-response.md) and [docs/testing.md](docs/testing.md). |
+| **Automated gates added 2 Nov 2026** | Contract mutation testing (9/9 mutants killed, in CI) and a cross-engine browser matrix (Chromium, Firefox, WebKit at three widths). Neither replaces an audit or a funded wallet journey. |
 
 ## 4. Mainnet evidence
 
@@ -107,11 +108,11 @@ Studio is where the project was built. The work done there, stated conservativel
 
 UNSPENT currently demonstrates **one provider, one service, one builder's wallets**. The goal is that other small API providers can offer refundable prepaid balances without writing their own payment protocol.
 
-Everything below is **planned, not shipped**. Milestones carry acceptance criteria instead of release dates.
+Everything below is **planned or in progress, not shipped**. Milestones carry acceptance criteria instead of release dates; progress is stated where it exists, never implied.
 
 | Milestone | Planned work | Evidence of completion |
 |---|---|---|
-| **Harden the existing service** | Independent contract review; row-level transactional persistence instead of one JSON snapshot; stronger restart recovery; continue resolving the MetaMask classification. | Published findings and fixes; automated database-failure and interrupted-transaction tests against real Postgres. |
+| **Harden the existing service** *(partly done)* | Independent contract review; a database-backed execution lock (the last single-instance limit); continue resolving the MetaMask classification. | Row-level persistence with database-failure tests, mutation testing and the browser matrix are done; what remains is an external review and the shared lock. |
 | **Package the integration** | A TypeScript SDK and a reference server for quoting, reservations, delivery hashing and acceptance, extracted from the sample API. | A second API service integrated using the published package and documentation, with no changes to the contract. |
 | **Pilot with external providers** | Onboard providers outside this project and test the economics of the acceptance model. | Real pilot results covering successful payments, rejected responses, refunds, gas costs and support friction. |
 | **Support software clients** | Document how scripts and agents can use the same bounded authorizations and recovery paths without a browser wallet. | A working programmatic client with explicit spending limits and replay tests. |
@@ -196,48 +197,43 @@ Gemini: `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai` (
 
 ## 10. Verification and limitations
 
-Recorded results and their scope are kept in [docs/testing.md](docs/testing.md) and [docs/hosting.md](docs/hosting.md). Run the commands yourself:
+Everything below was run on 2 Nov 2026 against this tree; per-test scope and the older recorded runs are in [docs/testing.md](docs/testing.md).
 
-```bash
-forge test                     # contract suite: 192 tests + 8 invariant properties; how many Foundry prints depends on its version (docs/testing.md)
-bun run check                  # oxlint + typecheck for app, server and recovery client
-bun run test:unit              # acceptance guard and request-lifecycle unit tests (run in CI)
-bun scripts/test-auth.ts       # negative authorisation tests against the running API
-bun scripts/verify-claims.ts   # independent RPC-only re-check of every recorded testnet transaction and the deployed bytecode
-bun scripts/revoke-tokens.ts   # revoke all bearer tokens (stop the API first)
-bun scripts/mainnet-prepare.ts # live mainnet approval sheet (sends nothing)
-TEST_DATABASE_URL=postgres://... bun scripts/test-persistence.ts   # metadata survives an API restart
-bun run build                  # production build of the app
-bun run recovery:build         # production build of the recovery client
-bun scripts/e2e-deposit-recover.ts   # browser journey with a test wallet: deposit, simulated outage, recovery refund
-bun scripts/e2e-full-journey.ts      # real Gemini journey: deposit, reserve, response, accept, settle, replay rejected, refund
-bun scripts/e2e-release.ts <id>      # release an expired reservation through the recovery client
-```
+| Check | Command | Result |
+|---|---|---|
+| Contract suite | `forge test` | **218 passed, 0 failed** (217 test functions plus the invariant campaign Foundry counts as one test), 14 suites |
+| Contract mutation testing | `bun run test:mutation` | **9/9 mutants killed** — each injected defect made the guarding suite fail |
+| App, server and relay unit tests | `bun run test:unit` | **74 passed, 0 failed** (acceptance guard, lifecycle, store, retry, limiter, relay bucket) |
+| Lint and typecheck | `bun run check` | clean |
+| Production builds | `bun run build`, `bun run recovery:build` | both succeed |
+| Cross-engine browser matrix | `bun run test:browsers` | **45/45 page checks** — Chromium, Firefox and WebKit at 375, 768 and 1440 px on `/`, `/docs`, `/proof`, `/recover`, `/app` |
 
-Browser scripts need Playwright's Chromium and a funded Arc Testnet customer key in `server/.env`. CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, both builds and the contract tests on every push; the browser journeys, the funded testnet journeys and every mainnet action were run by hand and are not in CI.
+The browser matrix checks rendering, horizontal overflow, a visible header and uncaught errors — not a wallet flow. The funded journeys (`scripts/e2e-*.ts`) still run by hand because they need a funded key and a signing wallet.
 
-**Two evidence tracks, kept separate.**
+### Status of each limitation
 
-| Track | Network | Proves | Does not prove |
-|---|---|---|---|
-| Mainnet payment journey | Arc mainnet | Real USDC: deposit, customer-signed reservation, real Gemini response, customer-signed acceptance, settlement, refund. API online throughout. | An outage, an audit, external customers, or anything beyond one small run. |
-| Hosted outage test | Arc Testnet | The API was **actually suspended at its host**; the independent recovery client released two expired reservations and refunded 1.00 USDC from the owner's own MetaMask wallet, with zero requests to the primary API. [docs/fresh-wallet-recovery-test.md](docs/fresh-wallet-recovery-test.md) | Mainnet behaviour. |
+| Limitation | Status | Evidence |
+|---|---|---|
+| **Unaudited contract** | **Open** | An audit needs an independent third party. The contract has 217 tests, an invariant campaign, mutation testing and a recorded internal review — none of which is an audit. |
+| **No formal verification** | **Open** | Not attempted. A symbolic tool would answer different questions than the test suite, and calling it "verified" without a written spec would be worse than leaving it open. |
+| **No mutation testing** | **Closed** | [`scripts/mutation-test.ts`](scripts/mutation-test.ts) injects nine defects (fee-on-transfer acceptance, over-credit on partial settlement, release one second early, settle at expiry, unusable last refund, nonce replay, vault-as-payout, any ERC-1271 response accepted, consent window ignored). All nine are caught, and CI fails if one survives. |
+| **Single JSON snapshot row, no database fault injection** | **Mostly closed** | Metadata is now one Postgres row per request plus one counter row per `(day, scope)`; counters move with `calls = calls + 1` in the database, and usage is written in a single statement so a partial update cannot happen ([`server/store.ts`](server/store.ts)). Fault injection runs against a real Postgres engine (PGlite): failing durable writes, an interrupted counter update, a failed write followed by a successful one, and reload after restart ([`scripts/store.test.ts`](scripts/store.test.ts)). **Still open:** the one-model-call-per-reservation lock is process-local, so **one API instance remains the supported deployment**. A database-backed lock is the next step, not a claim. |
+| **Model outputs are not persisted** | **Deliberate, documented** | Outputs stay in memory for 30 minutes and are cleared on restart; a gone output returns `410 OUTPUT_UNAVAILABLE` rather than an empty success. Persisting prompts and outputs would put customer content in the database, which is a privacy decision the design rejects on purpose. Nothing is charged for an output the customer never accepted. |
+| **Provider nonpayment (customer withholds acceptance)** | **Addressed in source, not deployed** | The contract source now supports a per-reservation, customer-signed consent window: the customer may sign `providerSettleAfter`, after which the provider's registry owner can claim up to `maxAmount` before expiry (`settleConsented`). It is opt-in, capped, bounded by the reservation, and impossible for a provider to enable. **The default is unchanged**, and the deployed contract does not have it. See [docs/decisions.md](docs/decisions.md). |
+| **EOA signatures only** | **Addressed in source, not deployed** | `_verifySignature` now accepts ERC-1271 contract-wallet signatures via `isValidSignature`, with every failure path mapped to `InvalidSignature`. Covered by 11 tests including rejecting wallets, reverting wallets and short returns. The deployed vaults still take EOA signatures only. |
+| **Arc only, USDC only** | **Open by design** | The vault is deliberately one chain and one asset with exact-transfer semantics. Multi-chain or multi-token support would be a different product with its own accounting and screening questions. |
+| **Public RPC limits (429s, rejected log ranges)** | **Mostly closed** | Reads retry with exponential backoff and jitter, the proof page holds at most four receipt reads in flight, small log ranges are split further on rejection, and the recovery relay enforces a per-client token bucket ([`src/lib/retry.ts`](src/lib/retry.ts), [`src/lib/limit.ts`](src/lib/limit.ts), [`recovery/functions/rpc/[net].ts`](recovery/functions/rpc/%5Bnet%5D.ts)). The relay bucket is per Cloudflare isolate, not global, and the Vercel `/rpc` rewrite is still a plain forward with no method allowlist. |
+| **Not tested on Firefox, Safari, mobile** | **Mostly closed** | Firefox (Gecko) and WebKit run automatically at phone, tablet and desktop widths. **Still manual:** a real MetaMask/Rabby extension, iOS Safari itself, and recovery with a wallet on the wrong network end to end. |
 
-**Disclosures.**
+### The contract source is ahead of the deployment
 
-- **The contract is not independently audited.** It has the test suite above and an internal review. A separate independent review of the deployed app and repository found eight application issues (no contract defect, no secret in history); they are addressed and recorded in [docs/audit-response.md](docs/audit-response.md), including what remains limited.
-- **MetaMask classifies both UNSPENT domains as malicious and the cause is unresolved** ([MetaMask/eth-phishing-detect#308206](https://github.com/MetaMask/eth-phishing-detect/issues/308206)). The owner reviewed each request and proceeded on their own funds. Nothing in the app hides or bypasses the warning.
+`contracts/UnspentVault.sol` now contains ERC-1271 support and the consent-settlement path. **Neither is deployed.** The live testnet and mainnet vaults, the ABIs in `src/contracts` and `recovery/src/contracts`, and the app's EIP-712 schema all still describe the deployed nine-field `ReserveAuthorisation`. A signature made for one schema is invalid against the other, so deploying this source needs all of: a new deployment, `bun run sync:deployments`, an app signing change and a fresh acceptance test. Until then, `/docs` in the app correctly describes the deployed contract, not this source tree.
 
-**Known limitations.**
+### Disclosures that do not change
 
-- **Unaudited contract**, no formal verification, no mutation testing.
-- **The API is single-instance.** The one-model-call lock is process-local, and metadata is one JSON snapshot row rather than row-level transactions; do not run two instances against one database. Writes for irreversible steps are awaited and acknowledged first, but database fault-injection against real Postgres has not been done.
-- **Model outputs are not persisted.** They live in memory for 30 minutes and are cleared on restart; a delivered output that is gone returns `410 OUTPUT_UNAVAILABLE` rather than an empty success.
-- **Provider nonpayment risk is real.** A response hash records acceptance, not service quality, and a customer can withhold acceptance (see [§6](#6-why-this-approach)).
-- **EOA signatures only.** Smart-contract wallets (ERC-1271) are unsupported.
-- **Network and token restrictions.** Arc only, USDC only (6-decimal ERC-20 view). Refunds can be blocked by issuer or network restrictions, so "refund any time" means the contract permits it, not that the transfer can always succeed.
-- **Public RPC limits.** `eth_getLogs` over large ranges is rejected and bursts can return 429; the app and recovery client chunk log scans and fall back across endpoints, and the recovery client lets users add their own.
-- **Not tested:** real MetaMask or Rabby on a physical browser for the scripted journeys (the outage test did use MetaMask and a real wallet), mobile devices, Firefox and Safari, and recovery with a wallet on the wrong network end to end.
+- **The deployed contract is not independently audited**, and a separate review of the app and repository found eight application issues that are addressed in [docs/audit-response.md](docs/audit-response.md).
+- **MetaMask classifies both UNSPENT domains as malicious and the cause is unresolved** ([MetaMask/eth-phishing-detect#308206](https://github.com/MetaMask/eth-phishing-detect/issues/308206)). Nothing in the app hides or bypasses the warning.
+- **Mainnet evidence is one small run** (0.20 deposited, 0.10 settled, 0.10 refunded) with the builder's own two wallets, and **no outage test has run on mainnet**.
 
 ## Further reading
 
