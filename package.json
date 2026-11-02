@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p recovery/tsconfig.json && tsc --noEmit -p recovery/tsconfig.node.json",
     "check": "bun run lint && bun run typecheck",
     "test:unit": "bun test",
+    "test:mutation": "bun scripts/mutation-test.ts",
+    "test:browsers": "bun scripts/browser-matrix.ts",
     "sync:deployments": "bun scripts/sync-deployments.ts",
     "start": "bun server/index.ts",
     "gen:testnet-keys": "bun scripts/gen-testnet-keys.ts"
@@ -35,6 +37,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
     "@tailwindcss/vite": "4.3.3",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.6",
