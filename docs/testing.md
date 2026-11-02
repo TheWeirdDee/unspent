@@ -10,7 +10,7 @@ Everything here was run against this working tree, not quoted from an earlier se
 |---|---|---|
 | Contract suite | `forge test` (Foundry 1.8.7) | 218 passed, 0 failed, 14 suites. 217 test functions plus the invariant campaign, which Forge counts as one test. |
 | Mutation testing | `bun run test:mutation` | 9/9 mutants killed. Each mutant is an injected defect; a killed mutant means the named suite fails, which is the evidence that the behaviour is actually tested. |
-| Unit tests | `bun run test:unit` | 74 passed, 0 failed across 4 files: delivery guard (31), lifecycle (22), store (9), retry/limiter/relay bucket (12). |
+| Unit tests | `bun run test:unit` | 76 passed, 0 failed across 4 files: delivery guard (31), lifecycle (22), store (11), retry/limiter/relay bucket (12). |
 | Lint and typecheck | `bun run check` | clean (oxlint + three `tsc --noEmit` projects). |
 | Builds | `bun run build`, `bun run recovery:build` | both succeed. |
 | Browser matrix | `bun run test:browsers` | 45/45 checks: Chromium, Firefox and WebKit at 375, 768 and 1440 px over `/`, `/docs`, `/proof`, `/recover`, `/app`. Asserts no horizontal overflow, a visible header, HTTP < 400 and no uncaught page error. |
