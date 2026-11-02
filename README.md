@@ -203,7 +203,7 @@ Everything below was run on 2 Nov 2026 against this tree; per-test scope and the
 |---|---|---|
 | Contract suite | `forge test` | **218 passed, 0 failed** (217 test functions plus the invariant campaign Foundry counts as one test), 14 suites |
 | Contract mutation testing | `bun run test:mutation` | **9/9 mutants killed** — each injected defect made the guarding suite fail |
-| App, server and relay unit tests | `bun run test:unit` | **74 passed, 0 failed** (acceptance guard, lifecycle, store, retry, limiter, relay bucket) |
+| App, server and relay unit tests | `bun run test:unit` | **76 passed, 0 failed** (acceptance guard, lifecycle, store, retry, limiter, relay bucket) |
 | Lint and typecheck | `bun run check` | clean |
 | Production builds | `bun run build`, `bun run recovery:build` | both succeed |
 | Cross-engine browser matrix | `bun run test:browsers` | **45/45 page checks** — Chromium, Firefox and WebKit at 375, 768 and 1440 px on `/`, `/docs`, `/proof`, `/recover`, `/app` |
